@@ -18,12 +18,7 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     # --- Enums ---
-    op.execute("""
-        CREATE TYPE match_status AS ENUM (
-            'NS','1H','HT','2H','ET','BT','P','FT','AET','PEN',
-            'PST','CANC','ABD','SUSP','INT','TBD','AWD','WO'
-        )
-    """)
+    op.execute("CREATE TYPE match_status AS ENUM ('NS','1H','HT','2H','ET','BT','P','FT','AET','PEN','PST','CANC','ABD','SUSP','INT','TBD','AWD','WO')")
 
     # --- Competitions ---
     op.create_table(
@@ -82,7 +77,7 @@ def upgrade() -> None:
         sa.Column("kickoff_utc", sa.DateTime(timezone=True), nullable=False),
         sa.Column("home_team_id", sa.Integer(), sa.ForeignKey("teams.id"), nullable=False),
         sa.Column("away_team_id", sa.Integer(), sa.ForeignKey("teams.id"), nullable=False),
-        sa.Column("status", sa.Enum("NS","1H","HT","2H","ET","BT","P","FT","AET","PEN","PST","CANC","ABD","SUSP","INT","TBD","AWD","WO", name="match_status"), default="NS"),
+        sa.Column("status", sa.Text(), default="NS"),
         sa.Column("minute", sa.SmallInteger(), nullable=True),
         sa.Column("home_goals", sa.SmallInteger(), sa.CheckConstraint("home_goals BETWEEN 0 AND 20"), nullable=True),
         sa.Column("away_goals", sa.SmallInteger(), sa.CheckConstraint("away_goals BETWEEN 0 AND 20"), nullable=True),

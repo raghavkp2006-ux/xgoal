@@ -19,6 +19,7 @@ from sqlalchemy import (
     SmallInteger,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -256,8 +257,8 @@ class PlayerSeasonStat(Base):
             "player_id", "team_id", "season_id", "snapshot_date",
             name="uq_player_season_snapshot"
         ),
-        Index("idx_pss_lookup", "season_id", "team_id", "snapshot_date.desc()"),
-        Index("idx_pss_goals", "season_id", "goals.desc()"),
+        Index("idx_pss_lookup", "season_id", "team_id", text("snapshot_date DESC")),
+        Index("idx_pss_goals", "season_id", text("goals DESC")),
     )
 
 
@@ -290,7 +291,7 @@ class StandingsSnapshot(Base):
 
     __table_args__ = (
         UniqueConstraint("season_id", "computed_at", "team_id"),
-        Index("idx_standings_latest", "season_id", "computed_at.desc()"),
+        Index("idx_standings_latest", "season_id", text("computed_at DESC")),
     )
 
 
@@ -376,7 +377,7 @@ class SimulationRun(Base):
     model_version: Mapped["ModelVersion"] = relationship()
 
     __table_args__ = (
-        Index("idx_simruns_latest", "season_id", "run_at.desc()"),
+        Index("idx_simruns_latest", "season_id", text("run_at DESC")),
     )
 
 
