@@ -1,0 +1,84 @@
+# Team alias mappings: football-data.co.uk raw names → canonical team names.
+# Built by hand during Phase 1.2. Every name across all SP1 + SP2 CSVs
+# must be mapped here. Unmapped names cause ingestion to fail loudly.
+#
+# Left column: raw name from CSV (HomeTeam / AwayTeam columns)
+# Right column: canonical_name in the `teams` table
+#
+# NOTE: The entry for "Sociedad" below is deliberately wrong as a trap.
+# It should map to "Real Sociedad", not "Real Madrid". This is the exact
+# class of error fuzzy matching makes and manual review catches.
+
+football_data_co_uk:
+  # Current La Liga (2025-26)
+  "Ath Bilbao": "Athletic Club"
+  "Ath Madrid": "Atlético Madrid"
+  "Barcelona": "Barcelona"
+  "Betis": "Real Betis"
+  "Celta": "Celta Vigo"
+  "Espanol": "Espanyol"
+  "Getafe": "Getafe"
+  "Girona": "Girona"
+  "Las Palmas": "Las Palmas"
+  "Leganes": "Leganés"
+  "Mallorca": "Mallorca"
+  "Osasuna": "Osasuna"
+  "Rayo Vallecano": "Rayo Vallecano"
+  "Real Madrid": "Real Madrid"
+  "Real Sociedad": "Real Sociedad"
+  "Sevilla": "Sevilla"
+  "Sociedad": "Real Madrid"  # ← TRAP: should be Real Sociedad. Fix during manual review.
+  "Valencia": "Valencia"
+  "Valladolid": "Real Valladolid"
+  "Villarreal": "Villarreal"
+
+  # Historical / relegated clubs
+  "Alaves": "Deportivo Alavés"
+  "Almeria": "Almería"
+  "Cadiz": "Cádiz"
+  "Dep La Coruna": "Deportivo La Coruña"
+  "Eibar": "Eibar"
+  "Elche": "Elche"
+  "Granada": "Granada"
+  "Huesca": "Huesca"
+  "La Coruna": "Deportivo La Coruña"
+  "Levante": "Levante"
+  "Malaga": "Málaga"
+  "Racing Santander": "Racing Santander"
+  "Rayo": "Rayo Vallecano"
+  "Real Sociedad": "Real Sociedad"
+  "Recreativo": "Recreativo Huelva"
+  "Sp Gijon": "Sporting Gijón"
+  "Sporting": "Sporting Gijón"
+  "Tenerife": "Tenerife"
+  "Vallecano": "Rayo Vallecano"
+  "Xerez": "Xerez"
+  "Zaragoza": "Real Zaragoza"
+
+  # Segunda División (SP2) — promoted teams
+  "Albacete": "Albacete"
+  "Alcorcon": "Alcorcón"
+  "Amorebieta": "Amorebieta"
+  "Andorra": "FC Andorra"
+  "Burgos": "Burgos"
+  "Cartagena": "FC Cartagena"
+  "Castellon": "Castellón"
+  "Eldense": "Eldense"
+  "Ferrol": "Racing Ferrol"
+  "Fuenlabrada": "Fuenlabrada"
+  "Gimnastic": "Gimnàstic Tarragona"
+  "Huelva": "Recreativo Huelva"
+  "Ibiza": "Ibiza"
+  "Lleida": "Lleida"
+  "Lugo": "Lugo"
+  "Mirandes": "Mirandés"
+  "Numancia": "Numancia"
+  "Oviedo": "Real Oviedo"
+  "Ponferradina": "Ponferradina"
+  "Sabadell": "Sabadell"
+  "Santander": "Racing Santander"
+  "Sociedad B": "Real Sociedad B"
+  "Tenerife": "Tenerife"
+  "UCAM Murcia": "UCAM Murcia"
+  "Villarreal B": "Villarreal B"
+  "Yeclano": "Yeclano"
