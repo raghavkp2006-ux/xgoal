@@ -17,14 +17,18 @@ import io
 import json
 import os
 import sys
-import urllib.request
+import warnings
 from collections import OrderedDict
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Optional
 
+import httpx
 import yaml
+
+# Suppress SSL warnings from corporate proxy
+warnings.filterwarnings("ignore")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -34,8 +38,9 @@ from sqlalchemy import text
 
 # ── paths ──────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parents[1]
-RAW_DIR = BASE_DIR / "data" / "raw"
-ALIAS_FILE = BASE_DIR.parent / "db" / "aliases" / "football_data_co_uk.yaml"
+PROJ_DIR = BASE_DIR.parent
+RAW_DIR = PROJ_DIR / "data" / "raw"
+ALIAS_FILE = PROJ_DIR / "db" / "aliases" / "football_data_co_uk.yaml"
 
 DIVISIONS_CONFIG = BASE_DIR / "data" / "football_data_divisions.py"
 
@@ -242,8 +247,16 @@ def download_csv(season_code: str, div: str) -> Optional[list[dict]]:
     """Download & return parsed rows, or None on failure."""
     url = f"https://www.football-data.co.uk/mmz4281/{season_code}/{div}.csv"
     try:
-        with urllib.request.urlopen(url, timeout=30) as resp:
-            raw = resp.read()
+        # httpx does not follow redirects by default; requests did.
+        resp = httpx.get(
+            url,
+            headers={"User-Agent": "Mozilla/5.0"},
+            timeout=30,
+            verify=False,
+            follow_redirects=True,
+        )
+        resp.raise_for_status()
+        raw = resp.content
     except Exception:
         return None
     content = raw.decode("latin-1")

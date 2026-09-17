@@ -19,6 +19,7 @@ dependencies = [
     "scikit-learn>=1.5.0",
     "xgboost>=2.1.0",
     "python-dotenv>=1.0.0",
+    "PyYAML>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -48,3 +49,6 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "slow: needs the live database; `pytest -m 'not slow'` deselects these",
+]
