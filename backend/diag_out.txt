@@ -1,0 +1,16 @@
+teams=529 aliases=548
+
+=== MISSING CSVs (0) ===
+
+=== UNMAPPED RAW NAMES (0) ===
+
+=== CANONICAL NOT IN DB (0) ===
+
+=== SELF-PLAY (same canonical on both sides) (0) ===
+
+=== RELATED DB TEAMS ===
+  id=10 'Espanyol'
+  id=18 'Osasuna'
+  id=34 'Deportivo La Coruña'
+  id=321 'Preussen Muenster'
+  id=442 'Deportivo Alavés'

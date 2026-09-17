@@ -1,0 +1,36 @@
+==================================================================
+  Competition consolidation (APPLY)
+==================================================================
+
+['La Liga' / Spain]
+   id=  1 code='LA_LIGA'  api=140 matches=0
+   id=  2 code='SP1'      api=None matches=3800
+   KEEP   id=2 code='SP1' (3800 matches)
+   REMOVE id=1 code='LA_LIGA' (0 matches)
+   player_season_stats.season_id 2024: +23/-0
+   standings_snapshots.season_id 2024: +20/-0
+   removed competition 1 ('LA_LIGA') and its seasons
+   api_football_id 140 -> competition 2 ('SP1')
+
+==================================================================
+  Consolidation applied
+   id=  2 'SP1'      api=140 seasons=10 matches=3800
+   id=  3 'SP2'      api=None seasons=10 matches=4620
+   id=  4 'E0'       api=None seasons=10 matches=3800
+   id=  5 'E1'       api=None seasons=10 matches=5520
+   id=  6 'E2'       api=None seasons=10 matches=5368
+   id=  7 'E3'       api=None seasons=10 matches=5408
+   id=  8 'D1'       api=None seasons=10 matches=3060
+   id=  9 'D2'       api=None seasons=10 matches=3060
+   id= 10 'I1'       api=None seasons=10 matches=3800
+   id= 11 'I2'       api=None seasons=10 matches=4008
+   id= 12 'F1'       api=None seasons=10 matches=3551
+   id= 13 'F2'       api=None seasons=10 matches=3625
+   id= 14 'N1'       api=None seasons=10 matches=2986
+   id= 15 'P1'       api=None seasons=10 matches=3060
+   id= 16 'T1'       api=None seasons=10 matches=3394
+   id= 17 'B1'       api=None seasons=10 matches=2590
+   id= 18 'G1'       api=None seasons=10 matches=2052
+   id= 19 'SC0'      api=None seasons=10 matches=1319
+   id= 20 'SC1'      api=None seasons=10 matches=900
+==================================================================

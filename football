@@ -1,0 +1,12 @@
+# Database
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/xgoal
+
+# CORS
+CORS_ORIGIN=http://localhost:3000
+
+# API-Football (v3)
+API_FOOTBALL_KEY=your_api_key_here
+API_FOOTBALL_BASE_URL=https://v3.football.api-sports.io
+
+# Logging
+LOG_LEVEL=INFO

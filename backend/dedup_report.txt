@@ -1,0 +1,24 @@
+==================================================================
+  Team de-duplication  (APPLY)
+==================================================================
+
+Starting teams: 531   teams with matches: 206
+
+[Deportivo Alavés]
+   KEEP  id= 442 matches=  548 'Deportivo Alavés'
+   MERGE  id=  12 matches=    0 'Alaves'
+   merged 'Alaves': matches +0/-0, aliases +0/-0
+
+[Real Valladolid]
+   KEEP  id=  61 matches=  400 'Real Valladolid'
+   MERGE  id=  17 matches=    0 'Valladolid'
+   merged 'Valladolid': matches +0/-0, aliases +0/-0
+
+==================================================================
+  Merged 2 team(s); matches moved=0 dropped=0; aliases moved=0 dropped=0
+  Skipped groups: ["Atlético Madrid: only ['Atlético Madrid'] present", "Leganés: only ['Leganés'] present", "Alcorcón: only ['Alcorcón'] present", "Almería: only ['Almería'] present", "Cádiz: only ['Cádiz'] present", "Castellón: only ['Castellón'] present", "Deportivo La Coruña: only ['Deportivo La Coruña'] present", "Gimnàstic Tarragona: only ['Gimnàstic Tarragona'] present", "Mirandés: only ['Mirandés'] present", "Málaga: only ['Málaga'] present", "Sporting Gijón: only ['Sporting Gijón'] present", "UD Logroñés: only ['UD Logroñés'] present", "FC Andorra: only ['FC Andorra'] present", "FC Cartagena: only ['FC Cartagena'] present", "Lorca FC: only ['Lorca FC'] present", "Espanyol: only ['Espanyol'] present", "Athletic Club: only ['Athletic Club'] present"]
+==================================================================
+
+RENAMED (old -> new)  [use to rewrite the alias YAML]
+  'Alaves' -> 'Deportivo Alavés'
+  'Valladolid' -> 'Real Valladolid'

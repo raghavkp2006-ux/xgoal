@@ -5,8 +5,8 @@ Usage:
     python scripts/seed_la_liga.py [--season 2025]
 """
 import argparse
-import sys
 import os
+import sys
 
 # Ensure the backend package is importable
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

@@ -1,0 +1,43 @@
+==================================================================
+  Match reconciliation against source CSVs (APPLY)
+==================================================================
+
+SP1 1516: db=418 csv=380 stale=38
+   stale #3871: Deportivo Alavés vs Espanyol
+   stale #3817: Deportivo Alavés vs Real Sociedad
+   stale #3843: Rayo Vallecano vs Deportivo Alavés
+   stale #3863: Real Betis vs Deportivo Alavés
+   stale #3833: Valencia vs Deportivo Alavés
+   stale #3850: Deportivo Alavés vs Sporting Gijón
+   ... and 32 more
+
+SP2 2425: db=504 csv=462 stale=42
+   stale #4252: Deportivo Alavés vs Burgos
+   stale #4222: Deportivo Alavés vs Racing Ferrol
+   stale #4199: Deportivo Alavés vs Real Oviedo
+   stale #4206: Huesca vs Deportivo Alavés
+   stale #4228: Granada vs Deportivo Alavés
+   stale #4238: Cordoba vs Deportivo Alavés
+   ... and 36 more
+
+SP2 1920: db=504 csv=462 stale=42
+   stale #6538: Deportivo Alavés vs Albacete
+   stale #6565: Deportivo Alavés vs Numancia
+   stale #6510: Deportivo Alavés vs Real Oviedo
+   stale #6558: Sporting Gijón vs Deportivo Alavés
+   stale #6523: Huesca vs Deportivo Alavés
+   stale #6533: Rayo Vallecano vs Deportivo Alavés
+   ... and 36 more
+
+SP2 1819: db=504 csv=462 stale=42
+   stale #7031: Deportivo Alavés vs Granada
+   stale #7010: Alcorcón vs Deportivo Alavés
+   stale #6992: Tenerife vs Deportivo Alavés
+   stale #6977: Extremadura UD vs Deportivo Alavés
+   stale #6966: Albacete vs Deportivo Alavés
+   stale #7006: Deportivo Alavés vs Sporting Gijón
+   ... and 36 more
+
+==================================================================
+  Deleted 164 stale fixture(s)
+==================================================================
