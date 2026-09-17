@@ -1,0 +1,51 @@
+{
+  "_description": "Published final La Liga tables used as reference data by jobs/validate.py.",
+  "_source": "Wikipedia Sports-table templates (team order + per-club W/D/L/GF/GA), retrieved 2026-09-16.",
+  "_note": "Team names are DB canonical names. 2018/19 ordering is the published one: Real Valladolid 16th, Celta Vigo 17th.",
+  "seasons": {
+    "2018/19": [
+      {"position": 1, "team": "Barcelona", "played": 38, "won": 26, "drawn": 9, "lost": 3, "goals_for": 90, "goals_against": 36, "points": 87},
+      {"position": 2, "team": "Atlético Madrid", "played": 38, "won": 22, "drawn": 10, "lost": 6, "goals_for": 55, "goals_against": 29, "points": 76},
+      {"position": 3, "team": "Real Madrid", "played": 38, "won": 21, "drawn": 5, "lost": 12, "goals_for": 63, "goals_against": 46, "points": 68},
+      {"position": 4, "team": "Valencia", "played": 38, "won": 15, "drawn": 16, "lost": 7, "goals_for": 51, "goals_against": 35, "points": 61},
+      {"position": 5, "team": "Getafe", "played": 38, "won": 15, "drawn": 14, "lost": 9, "goals_for": 48, "goals_against": 35, "points": 59},
+      {"position": 6, "team": "Sevilla", "played": 38, "won": 17, "drawn": 8, "lost": 13, "goals_for": 62, "goals_against": 47, "points": 59},
+      {"position": 7, "team": "Espanyol", "played": 38, "won": 14, "drawn": 11, "lost": 13, "goals_for": 48, "goals_against": 50, "points": 53},
+      {"position": 8, "team": "Athletic Club", "played": 38, "won": 13, "drawn": 14, "lost": 11, "goals_for": 41, "goals_against": 45, "points": 53},
+      {"position": 9, "team": "Real Sociedad", "played": 38, "won": 13, "drawn": 11, "lost": 14, "goals_for": 45, "goals_against": 46, "points": 50},
+      {"position": 10, "team": "Real Betis", "played": 38, "won": 14, "drawn": 8, "lost": 16, "goals_for": 44, "goals_against": 52, "points": 50},
+      {"position": 11, "team": "Deportivo Alavés", "played": 38, "won": 13, "drawn": 11, "lost": 14, "goals_for": 39, "goals_against": 50, "points": 50},
+      {"position": 12, "team": "Eibar", "played": 38, "won": 11, "drawn": 14, "lost": 13, "goals_for": 46, "goals_against": 50, "points": 47},
+      {"position": 13, "team": "Leganés", "played": 38, "won": 11, "drawn": 12, "lost": 15, "goals_for": 37, "goals_against": 43, "points": 45},
+      {"position": 14, "team": "Villarreal", "played": 38, "won": 10, "drawn": 14, "lost": 14, "goals_for": 49, "goals_against": 52, "points": 44},
+      {"position": 15, "team": "Levante", "played": 38, "won": 11, "drawn": 11, "lost": 16, "goals_for": 59, "goals_against": 66, "points": 44},
+      {"position": 16, "team": "Real Valladolid", "played": 38, "won": 10, "drawn": 11, "lost": 17, "goals_for": 32, "goals_against": 51, "points": 41},
+      {"position": 17, "team": "Celta Vigo", "played": 38, "won": 10, "drawn": 11, "lost": 17, "goals_for": 53, "goals_against": 62, "points": 41},
+      {"position": 18, "team": "Girona", "played": 38, "won": 9, "drawn": 10, "lost": 19, "goals_for": 37, "goals_against": 53, "points": 37},
+      {"position": 19, "team": "Huesca", "played": 38, "won": 7, "drawn": 12, "lost": 19, "goals_for": 43, "goals_against": 65, "points": 33},
+      {"position": 20, "team": "Rayo Vallecano", "played": 38, "won": 8, "drawn": 8, "lost": 22, "goals_for": 41, "goals_against": 70, "points": 32}
+    ],
+    "2021/22": [
+      {"position": 1, "team": "Real Madrid", "played": 38, "won": 26, "drawn": 8, "lost": 4, "goals_for": 80, "goals_against": 31, "points": 86},
+      {"position": 2, "team": "Barcelona", "played": 38, "won": 21, "drawn": 10, "lost": 7, "goals_for": 68, "goals_against": 38, "points": 73},
+      {"position": 3, "team": "Atlético Madrid", "played": 38, "won": 21, "drawn": 8, "lost": 9, "goals_for": 65, "goals_against": 43, "points": 71},
+      {"position": 4, "team": "Sevilla", "played": 38, "won": 18, "drawn": 16, "lost": 4, "goals_for": 53, "goals_against": 30, "points": 70},
+      {"position": 5, "team": "Real Betis", "played": 38, "won": 19, "drawn": 8, "lost": 11, "goals_for": 62, "goals_against": 40, "points": 65},
+      {"position": 6, "team": "Real Sociedad", "played": 38, "won": 17, "drawn": 11, "lost": 10, "goals_for": 40, "goals_against": 37, "points": 62},
+      {"position": 7, "team": "Villarreal", "played": 38, "won": 16, "drawn": 11, "lost": 11, "goals_for": 63, "goals_against": 37, "points": 59},
+      {"position": 8, "team": "Athletic Club", "played": 38, "won": 14, "drawn": 13, "lost": 11, "goals_for": 43, "goals_against": 36, "points": 55},
+      {"position": 9, "team": "Valencia", "played": 38, "won": 11, "drawn": 15, "lost": 12, "goals_for": 48, "goals_against": 53, "points": 48},
+      {"position": 10, "team": "Osasuna", "played": 38, "won": 12, "drawn": 11, "lost": 15, "goals_for": 37, "goals_against": 51, "points": 47},
+      {"position": 11, "team": "Celta Vigo", "played": 38, "won": 12, "drawn": 10, "lost": 16, "goals_for": 43, "goals_against": 43, "points": 46},
+      {"position": 12, "team": "Rayo Vallecano", "played": 38, "won": 11, "drawn": 9, "lost": 18, "goals_for": 39, "goals_against": 50, "points": 42},
+      {"position": 13, "team": "Elche", "played": 38, "won": 11, "drawn": 9, "lost": 18, "goals_for": 40, "goals_against": 52, "points": 42},
+      {"position": 14, "team": "Espanyol", "played": 38, "won": 10, "drawn": 12, "lost": 16, "goals_for": 40, "goals_against": 53, "points": 42},
+      {"position": 15, "team": "Getafe", "played": 38, "won": 8, "drawn": 15, "lost": 15, "goals_for": 33, "goals_against": 41, "points": 39},
+      {"position": 16, "team": "Mallorca", "played": 38, "won": 10, "drawn": 9, "lost": 19, "goals_for": 36, "goals_against": 63, "points": 39},
+      {"position": 17, "team": "Cádiz", "played": 38, "won": 8, "drawn": 15, "lost": 15, "goals_for": 35, "goals_against": 51, "points": 39},
+      {"position": 18, "team": "Granada", "played": 38, "won": 8, "drawn": 14, "lost": 16, "goals_for": 44, "goals_against": 61, "points": 38},
+      {"position": 19, "team": "Levante", "played": 38, "won": 8, "drawn": 11, "lost": 19, "goals_for": 51, "goals_against": 76, "points": 35},
+      {"position": 20, "team": "Deportivo Alavés", "played": 38, "won": 8, "drawn": 7, "lost": 23, "goals_for": 31, "goals_against": 65, "points": 31}
+    ]
+  }
+}
