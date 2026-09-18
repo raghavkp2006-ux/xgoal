@@ -154,6 +154,43 @@ class MatchIdentity:
 
 
 @dataclass(frozen=True)
+class MatrixSummary:
+    """A score matrix reduced to the numbers the product and the simulator need."""
+
+    p_home: float
+    p_draw: float
+    p_away: float
+    exp_home_goals: float
+    exp_away_goals: float
+    max_goals: int
+
+
+def summarise_score_matrix(matrix: FloatArray) -> MatrixSummary:
+    """Sum a score matrix into W/D/L probabilities and expected goals.
+
+    The single place where a scoreline distribution becomes an outcome
+    distribution. Phase 2.7 (serving) and Phase 5 (the season simulator) both
+    consume this, so they cannot drift apart. Rows are home goals, columns away
+    goals; the matrix is normalised first, so callers may pass unnormalised
+    Poisson products.
+    """
+    total = float(matrix.sum())
+    if total <= 0.0:
+        raise ValueError("score matrix must sum to a positive number")
+    m = matrix / total
+    size = m.shape[0]
+    goals = np.arange(size, dtype=np.float64)
+    return MatrixSummary(
+        p_home=float(np.tril(m, -1).sum()),
+        p_draw=float(np.trace(m)),
+        p_away=float(np.triu(m, 1).sum()),
+        exp_home_goals=float((m.sum(axis=1) * goals).sum()),
+        exp_away_goals=float((m.sum(axis=0) * goals).sum()),
+        max_goals=size - 1,
+    )
+
+
+@dataclass(frozen=True)
 class ScorelinePrediction:
     """Outcome probabilities plus the full scoreline distribution behind them."""
 
@@ -172,25 +209,20 @@ class ScorelinePrediction:
 
     @classmethod
     def from_matrix(cls, matrix: FloatArray) -> ScorelinePrediction:
-        """Aggregate a square score matrix (rows=home goals, columns=away goals)."""
-        total = float(matrix.sum())
-        if total <= 0.0:
-            raise ValueError("score matrix must sum to a positive number")
-        m = matrix / total
-        size = m.shape[0]
-        goals = np.arange(size, dtype=np.float64)
-        p_home = float(np.tril(m, -1).sum())
-        p_draw = float(np.trace(m))
-        p_away = float(np.triu(m, 1).sum())
-        exp_home = float((m.sum(axis=1) * goals).sum())
-        exp_away = float((m.sum(axis=0) * goals).sum())
-        cells = [[round(float(v), 6) for v in row] for row in m]
+        """Aggregate a square score matrix (rows=home goals, columns=away goals).
+
+        Delegates the statistics to :func:`summarise_score_matrix` so there is
+        exactly one implementation of the W/D/L and expected-goals summation.
+        """
+        summary = summarise_score_matrix(matrix)
+        normalised = matrix / float(matrix.sum())
+        cells = [[round(float(v), 6) for v in row] for row in normalised]
         return cls(
-            p_home=p_home,
-            p_draw=p_draw,
-            p_away=p_away,
-            exp_home_goals=exp_home,
-            exp_away_goals=exp_away,
-            max_goals=size - 1,
+            p_home=summary.p_home,
+            p_draw=summary.p_draw,
+            p_away=summary.p_away,
+            exp_home_goals=summary.exp_home_goals,
+            exp_away_goals=summary.exp_away_goals,
+            max_goals=summary.max_goals,
             matrix=cells,
         )
