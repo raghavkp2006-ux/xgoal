@@ -20,6 +20,7 @@ from typing import Any, Sequence
 from app.ml.baselines import BaseRateBaseline, EloBaseline, UniformBaseline, devig_probs
 from app.ml.data import MatchInput, Probs
 from app.ml.dixon_coles import DixonColesModel
+from app.ml.logistic import LogisticModel
 from app.ml.metrics import evaluate_predictions
 from app.ml.xgb_model import XGBoostModel
 
@@ -287,8 +288,16 @@ def walk_forward(
     random_seed: int = 42,
     window: int = 6,
     include_xgboost: bool = True,
+    include_logistic: bool = True,
+    logistic_params: dict[str, Any] | None = None,
+    xgb_params: dict[str, Any] | None = None,
 ) -> WalkForwardResult:
-    """Run the walk-forward protocol and score every forecaster."""
+    """Run the walk-forward protocol and score every forecaster.
+
+    ``logistic_params`` / ``xgb_params`` exist so a hyper-parameter search can
+    drive the harness on *validation* seasons; the test seasons must only ever
+    be scored with an already-selected configuration.
+    """
     if len(labels) != len(matches):
         raise ValueError("labels and matches must be aligned")
     ordered = sorted(zip(labels, matches, strict=True), key=lambda item: item[1].kickoff)
@@ -324,8 +333,15 @@ def walk_forward(
             history
         )
         booster = (
-            XGBoostModel(random_seed=random_seed, window=window).fit(history)
+            XGBoostModel(random_seed=random_seed, window=window, params=xgb_params).fit(
+                history
+            )
             if include_xgboost
+            else None
+        )
+        logistic = (
+            LogisticModel(window=window, params=logistic_params).fit(history)
+            if include_logistic
             else None
         )
         base_rate = BaseRateBaseline().fit(history)
@@ -343,6 +359,8 @@ def walk_forward(
                 forecasts.append(("market", market))
             if booster is not None:
                 forecasts.append(("xgboost", booster.predict_next_probs([match])[0]))
+            if logistic is not None:
+                forecasts.append(("logistic", logistic.predict_next_probs([match])[0]))
             for name, probs in forecasts:
                 pooled[name].append((match, probs))
                 per_season[season][name].append((match, probs))
