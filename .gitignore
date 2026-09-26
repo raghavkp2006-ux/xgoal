@@ -19,6 +19,13 @@ out/
 .vscode/
 .idea/
 
+# Debug scratch files
+_git*.txt
+backend/_*.txt
+/SP1.csv
+/backend/check_fixes.py
+/backend/diag_api.py
+
 # OS
 .DS_Store
 Thumbs.db
