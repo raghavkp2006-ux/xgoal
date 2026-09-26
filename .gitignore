@@ -22,6 +22,8 @@ out/
 # Debug scratch files
 _git*.txt
 backend/_*.txt
+/_taskdiff_final.txt
+/.worktrees/
 /SP1.csv
 /backend/check_fixes.py
 /backend/diag_api.py
