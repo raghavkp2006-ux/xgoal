@@ -1,7 +1,7 @@
 """Pydantic request/response schemas for all entities."""
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -277,3 +277,27 @@ class ApiRequestLogResponse(BaseModel):
     duration_ms: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── Predictions ──────────────────────────────────────────────────────────────────
+
+class HypotheticalPredictionRequest(BaseModel):
+    home_team_id: int
+    away_team_id: int
+    as_of: Optional[datetime] = None
+
+
+class PredictionResponse(BaseModel):
+    """A stored or on-demand Dixon-Coles forecast."""
+
+    match_id: Optional[int] = None
+    model_name: str
+    model_version: str
+    as_of: datetime
+    p_home: float
+    p_draw: float
+    p_away: float
+    expected_home_goals: Optional[float] = None
+    expected_away_goals: Optional[float] = None
+    score_matrix: Optional[dict[str, Any]] = None
+    is_hypothetical: bool = False

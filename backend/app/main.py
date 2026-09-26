@@ -11,7 +11,7 @@ from slowapi.util import get_remote_address
 from app.config import settings
 from app.database import SessionLocal
 from app.models import DataFreshness
-from app.routers import competitions, matches, standings, teams
+from app.routers import competitions, matches, predictions, standings, teams
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -34,6 +34,7 @@ app.add_middleware(
 
 app.include_router(competitions.router)
 app.include_router(matches.router)
+app.include_router(predictions.router)
 app.include_router(standings.router)
 app.include_router(teams.router)
 
