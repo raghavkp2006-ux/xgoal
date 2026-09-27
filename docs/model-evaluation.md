@@ -62,3 +62,19 @@ Neither tuned comparison model beat Dixon-Coles v2 on the core evaluation metric
 ## Reproducibility status
 
 The registered production evaluation records fixed seed 42, but a fixed-seed, clean-checkout test reproducing this full evaluation has not been run. That remains an open item.
+
+## Live scoreboard (post-launch, model_version_id=6, dixon_coles backfill-20260815, n=69 matches)
+
+This is a separate, backfilled subset of one real season, not the five-season offline walk-forward evaluation above. The scored predictions are keyed by `model_version_id=6`, which references the `model_versions.id=6` row (`dixon_coles`, version `backfill-20260815`).
+
+| Scoreboard metric | Result | Independent check |
+| --- | ---: | --- |
+| Pooled log loss | 0.956172 | Recomputed from the 69 raw prediction/result rows; agrees with the standalone script and the UI to three decimals. |
+| Pooled RPS | 0.192259 | Recomputed from the 69 raw prediction/result rows; agrees with the standalone script and the UI. |
+| Accuracy | 55.1% (38/69) | Re-derived by comparing each raw prediction's highest-probability outcome with the match result. |
+| Calibration error (ECE) | 0.027 | Recomputed from the 69 raw prediction/result rows using the scoreboard's probability bins; matches the displayed stat. With n=69 from a single frozen fit, bin-level noise is expected to be large, as the scoreboard caption notes. This warrants particular caution given [M7's](../laliga-buildplan-v2.md#m7-the-evaluation-protocol-is-too-weak-to-support-the-claim) warning that even ~380-match evaluation splits have substantial standard error. |
+| Closing-line comparison (same 69 odds-matched fixtures) | Market log loss 0.933482; market RPS 0.189741 | Independently recomputed from the closing probabilities and results for the same 69 fixtures. The model-minus-market gaps are +0.0227 log loss and +0.0025 RPS. |
+
+The market log loss of 0.933 falls below (is better than) the buildplan's cited ~0.95–0.97 reference range for top European leagues. This is attributable to small-sample noise in one month's matches (n=69), not a contradiction of the buildplan: it explicitly describes those figures as “approximate reference points … not guarantees.”
+
+These are backfilled point-in-time predictions from one frozen, non-production model fit (`backfill-20260815`, dated 2026-08-15 and trained on pre-season data only)—not output from an incrementally retrained rolling production model. They should not be conflated with the separate, ongoing prediction-logging record described in [M12](../laliga-buildplan-v2.md#m12-predictions-are-never-logged-so-live-model-performance-is-unrecoverable), which will accumulate results over more matchdays under the production `model_version`.

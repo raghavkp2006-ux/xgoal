@@ -9,7 +9,7 @@ import pytest
 from app.ml.data import ScorelinePrediction
 from app.ml.dataset import to_match_input
 from app.ml.store import _rounded_probs, feature_hash
-from jobs.simulate_season import current_table, parse_forced, simulate
+from jobs.simulate_season import current_table, parse_forced
 from jobs.train_model import parse_seasons
 
 KICKOFF = datetime(2024, 9, 1, 18, 0, tzinfo=timezone.utc)
@@ -77,56 +77,6 @@ def test_current_table_counts_points_and_goal_difference():
     table = current_table(NAMES, played)
     assert table["Team 00"] == {"played": 2, "points": 4, "gd": 3, "gf": 4}
     assert table["Team 01"] == {"played": 2, "points": 1, "gd": -3, "gf": 1}
-
-
-def four_team_table():
-    """A fresh, all-zero table for the simulation tests."""
-    return {
-        team: {"played": 0, "points": 0, "gd": 0, "gf": 0}
-        for team in ("Team 00", "Team 01", "Team 02", "Team 03")
-    }
-
-
-def test_simulate_produces_a_complete_distribution(flat_model):
-    """Exactly one champion per simulation, so the title shares sum to one."""
-    remaining = [("Team 00", "Team 01"), ("Team 02", "Team 03")]
-    results = simulate(flat_model, four_team_table(), remaining, 500, 7, {})
-    assert results["simulated_matches"] == 2
-    assert results["tiebreak"].startswith("points")
-    rows = {row["team"]: row for row in results["teams"]}
-    assert len(rows) == 4
-    assert sum(row["p_title"] for row in rows.values()) == pytest.approx(1.0, abs=1e-4)
-    for row in rows.values():
-        assert row["p_title"] <= row["p_top4"] <= 1.0
-        assert row["p_europe"] >= row["p_top4"]
-        assert 0.0 <= row["p_relegation"] <= 1.0
-        assert row["points_p10"] <= row["expected_points"] <= row["points_p90"]
-
-
-def test_simulate_honours_forced_results_without_randomness(flat_model):
-    """A fully pinned scenario is deterministic, whatever the seed."""
-    table = {
-        "Team 00": {"played": 0, "points": 0, "gd": 0, "gf": 0},
-        "Team 01": {"played": 0, "points": 0, "gd": 0, "gf": 0},
-    }
-    remaining = [("Team 00", "Team 01")]
-    forced = {"Team 00 vs Team 01": (5, 0)}
-    first = simulate(flat_model, table, remaining, 64, 1, forced)
-    second = simulate(flat_model, table, remaining, 64, 999, forced)
-    assert first == second
-    winner = next(row for row in first["teams"] if row["team"] == "Team 00")
-    assert winner["p_title"] == 1.0
-    assert winner["expected_points"] == 3.0
-
-
-def test_simulate_is_reproducible_for_a_fixed_seed(flat_model):
-    """Same seed and inputs, same probabilities."""
-    remaining = [("Team 00", "Team 01"), ("Team 02", "Team 03")]
-    first = simulate(flat_model, four_team_table(), remaining, 200, 5, {})
-    second = simulate(flat_model, four_team_table(), remaining, 200, 5, {})
-    assert first == second
-    other = simulate(flat_model, four_team_table(), remaining, 200, 6, {})
-    assert other != first
 
 
 def test_feature_hash_is_order_independent_and_stable():

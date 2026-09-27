@@ -1,46 +1,44 @@
 #!/usr/bin/env python3
 """Monte Carlo season simulation — the job that fills ``simulation_runs``.
 
-Loads the production Dixon-Coles artifact, replays a season's remaining fixtures
-thousands of times and stores the resulting title / top-four / European-place /
-relegation probabilities together with a points distribution per team.
-
-Ties are broken on points, then goal difference, then goals scored. La Liga
-breaks ties on head-to-head results first, so the simulated table is an
-approximation of the official rule (which the CSV feed does not expose).
-
-Forced results (``--force "Real Madrid:FC Barcelona:2-1"``) are recorded in
-``simulation_runs.forced_results`` and used instead of sampled scorelines, which
-is how a "what if" scenario is published.
+Fits Dixon-Coles at the current information cut, estimates parameter uncertainty
+with match bootstrap resampling, vectorizes the scoreline draws, ranks every run
+with La Liga head-to-head tiebreakers and appends a raw-verifiable result row.
 
 Usage:
     python -m jobs.simulate_season
     python -m jobs.simulate_season --season 2024/25 --sims 20000
     python -m jobs.simulate_season --as-of-matchday 30 --seed 7
-    python -m jobs.simulate_season --fit --force "Real Madrid:FC Barcelona:2-1"
+    python -m jobs.simulate_season --parameter-bootstrap 100
 """
 import argparse
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, time, timezone
+from time import perf_counter
 from typing import Any
-
-import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))  # noqa: E402
 
 from sqlalchemy.orm import Session  # noqa: E402
 
 from app.database import SessionLocal  # noqa: E402
-from app.ml.dataset import get_competition, load_completed_matches, load_team_names  # noqa: E402
+from app.ml.dataset import (  # noqa: E402
+    get_competition,
+    load_completed_matches,
+    load_team_names,
+)
 from app.ml.dixon_coles import DixonColesModel  # noqa: E402
-from app.ml.store import read_artifact, write_simulation_run  # noqa: E402
+from app.ml.simulation import (  # noqa: E402
+    Fixture,
+    bootstrap_parameter_ensemble,
+    derive_missing_round_robin_fixtures,
+    simulate_season as simulate_vectorized,
+)
+from app.ml.store import write_simulation_run  # noqa: E402
 from app.models import Match, ModelVersion, Season  # noqa: E402
 
 MODEL_NAME = "dixon_coles"
-TOP4_SLOTS = 4
-EUROPE_SLOTS = 6
-RELEGATION_SLOTS = 3
 
 
 def load_season(db: Session, competition_id: int, label: str | None) -> Season:
@@ -125,103 +123,17 @@ def print_table(rows: list[dict[str, Any]]) -> None:
     """Position, team and outcome probabilities of the simulated table."""
     header = (
         f"  {'#':>2}  {'team':<28} {'played':>6} {'pts':>4} {'xPts':>6} "
-        f"{'title':>7} {'top4':>7} {'euro':>7} {'down':>7}"
+        f"{'title':>7} {'top4':>7} {'top6':>7} {'down':>7}"
     )
     print(header)
     print("  " + "-" * (len(header) - 2))
     for position, row in enumerate(rows, start=1):
         print(
             f"  {position:>2}  {row['team'][:28]:<28} {row['played']:>6} "
-            f"{row['current_points']:>4} {row['expected_points']:>6.1f} "
-            f"{row['p_title']:>7.3f} {row['p_top4']:>7.3f} "
-            f"{row['p_europe']:>7.3f} {row['p_relegation']:>7.3f}"
+            f"{row['current_points']:>4} {row['expected_final_points']:>6.1f} "
+            f"{row['p_champion']:>7.3f} {row['p_top4']:>7.3f} "
+            f"{row['p_top6']:>7.3f} {row['p_relegation']:>7.3f}"
         )
-
-
-def simulate(
-    model: DixonColesModel,
-    table: dict[str, dict[str, int]],
-    remaining: list[tuple[str, str]],
-    n_sims: int,
-    seed: int,
-    forced: dict[str, tuple[int, int]],
-) -> dict[str, Any]:
-    """Play ``remaining`` ``n_sims`` times and summarise the final table."""
-    teams = sorted(table)
-    index = {team: position for position, team in enumerate(teams)}
-    n_teams = len(teams)
-    columns = np.arange(n_sims)
-
-    points = np.tile(
-        np.array([table[t]["points"] for t in teams], dtype=np.int64)[:, None],
-        (1, n_sims),
-    )
-    goal_diff = np.tile(
-        np.array([table[t]["gd"] for t in teams], dtype=np.int64)[:, None], (1, n_sims)
-    )
-    goals_for = np.tile(
-        np.array([table[t]["gf"] for t in teams], dtype=np.int64)[:, None], (1, n_sims)
-    )
-
-    rng = np.random.default_rng(seed)
-    for home, away in remaining:
-        forced_score = forced.get(f"{home} vs {away}")
-        if forced_score is not None:
-            home_goals = np.full(n_sims, forced_score[0], dtype=np.int64)
-            away_goals = np.full(n_sims, forced_score[1], dtype=np.int64)
-        else:
-            matrix = np.asarray(model.predict(home, away).matrix, dtype=np.float64)
-            flat = matrix.ravel()
-            flat = flat / flat.sum()
-            cdf = np.cumsum(flat)
-            cdf[-1] = 1.0
-            drawn = rng.random(n_sims)
-            cells = np.searchsorted(cdf, drawn, side="right")
-            home_goals = cells // matrix.shape[0]
-            away_goals = cells % matrix.shape[1]
-
-        home_index = index[home]
-        away_index = index[away]
-        home_win = home_goals > away_goals
-        away_win = home_goals < away_goals
-        points[home_index] += np.where(home_win, 3, np.where(away_win, 0, 1))
-        points[away_index] += np.where(away_win, 3, np.where(home_win, 0, 1))
-        goal_diff[home_index] += home_goals - away_goals
-        goal_diff[away_index] += away_goals - home_goals
-        goals_for[home_index] += home_goals
-        goals_for[away_index] += away_goals
-
-    # lexsort uses the last key as the primary one: points, then gd, then goals.
-    order = np.lexsort((goals_for, goal_diff, points), axis=0)
-    ranks = np.empty_like(order)
-    ranks[order, columns] = np.arange(n_teams)[:, None]
-    from_top = n_teams - 1 - ranks
-
-    rows: list[dict[str, Any]] = []
-    for position, team in enumerate(teams):
-        rows.append(
-            {
-                "team": team,
-                "p_title": round(float((from_top[position] == 0).mean()), 5),
-                "p_top4": round(float((from_top[position] < TOP4_SLOTS).mean()), 5),
-                "p_europe": round(float((from_top[position] < EUROPE_SLOTS).mean()), 5),
-                "p_relegation": round(
-                    float((from_top[position] >= n_teams - RELEGATION_SLOTS).mean()), 5
-                ),
-                "expected_points": round(float(points[position].mean()), 2),
-                "points_p10": float(np.percentile(points[position], 10)),
-                "points_p90": float(np.percentile(points[position], 90)),
-                "current_points": int(table[team]["points"]),
-                "current_goal_diff": int(table[team]["gd"]),
-                "played": int(table[team]["played"]),
-            }
-        )
-    rows.sort(key=lambda row: (-row["p_title"], -row["expected_points"]))
-    return {
-        "tiebreak": "points, goal difference, goals scored",
-        "simulated_matches": len(remaining),
-        "teams": rows,
-    }
 
 
 def main() -> int:
@@ -237,9 +149,10 @@ def main() -> int:
     parser.add_argument("--sims", type=int, default=10000, help="number of simulations")
     parser.add_argument("--seed", type=int, default=42, help="random seed")
     parser.add_argument(
-        "--fit",
-        action="store_true",
-        help="refit instead of loading the production artifact",
+        "--parameter-bootstrap",
+        type=int,
+        default=100,
+        help="match-resampled model fits used to estimate parameter uncertainty",
     )
     parser.add_argument(
         "--force",
@@ -251,6 +164,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.sims < 1:
         raise SystemExit("--sims must be at least 1")
+    if args.parameter_bootstrap < 2:
+        raise SystemExit("--parameter-bootstrap must be at least 2")
 
     db = SessionLocal()
     try:
@@ -260,20 +175,86 @@ def main() -> int:
         season = load_season(db, competition.id, args.season)
         names = load_team_names(db)
         played, unplayed = season_fixtures(db, season.id)
-        if not unplayed:
+        derived_calendar = not unplayed and season.is_current
+        if not unplayed and not derived_calendar:
             raise SystemExit(f"season {season.label} has no unplayed fixtures to simulate")
 
-        matchdays = [match.matchday for match in played if match.matchday is not None]
-        as_of = (
-            args.as_of_matchday
-            if args.as_of_matchday is not None
-            else max(matchdays, default=0)
-        )
-        remaining_matches = [
-            match for match in unplayed if match.matchday is None or match.matchday > as_of
-        ]
-        if not remaining_matches:
-            raise SystemExit(f"no unplayed fixtures after matchday {as_of}")
+        if derived_calendar:
+            if args.as_of_matchday is not None:
+                raise SystemExit(
+                    "matchday filtering is unavailable for the derived current-season "
+                    "schedule; the stored as_of_matchday will be 0 (unknown)"
+                )
+            team_ids = sorted(
+                {
+                    team_id
+                    for match in played
+                    for team_id in (match.home_team_id, match.away_team_id)
+                },
+                key=lambda team_id: names[team_id],
+            )
+            if len(team_ids) != 20:
+                raise SystemExit(
+                    f"cannot derive La Liga fixtures: expected 20 teams, found {len(team_ids)}"
+                )
+            played_fixtures = [
+                Fixture(
+                    season.id,
+                    match.home_team_id,
+                    match.away_team_id,
+                    match.home_goals,
+                    match.away_goals,
+                )
+                for match in played
+            ]
+            remaining_pairs = derive_missing_round_robin_fixtures(
+                team_ids, played_fixtures, season_id=season.id
+            )
+            remaining_fixtures = [
+                Fixture(season.id, home_id, away_id, None, None)
+                for home_id, away_id in remaining_pairs
+            ]
+            fixtures = played_fixtures + remaining_fixtures
+            as_of = 0
+            cut = datetime.combine(
+                season.start_date, time.min, tzinfo=timezone.utc
+            )
+        else:
+            matchdays = [match.matchday for match in played if match.matchday is not None]
+            as_of = (
+                args.as_of_matchday
+                if args.as_of_matchday is not None
+                else max(matchdays, default=0)
+            )
+            remaining_matches = [
+                match
+                for match in unplayed
+                if match.matchday is None or match.matchday > as_of
+            ]
+            if not remaining_matches:
+                raise SystemExit(f"no unplayed fixtures after matchday {as_of}")
+            cut = min(match.kickoff_utc for match in remaining_matches)
+            team_ids = sorted(
+                {
+                    team_id
+                    for match in played + remaining_matches
+                    for team_id in (match.home_team_id, match.away_team_id)
+                },
+                key=lambda team_id: names[team_id],
+            )
+            fixtures = [
+                Fixture(
+                    season.id,
+                    match.home_team_id,
+                    match.away_team_id,
+                    match.home_goals,
+                    match.away_goals,
+                )
+                for match in played
+            ] + [
+                Fixture(season.id, match.home_team_id, match.away_team_id, None, None)
+                for match in remaining_matches
+            ]
 
         version_row = (
             db.query(ModelVersion)
@@ -283,21 +264,20 @@ def main() -> int:
         if version_row is None:
             raise SystemExit("no production model version - run jobs.train_model first")
 
-        cut = min(match.kickoff_utc for match in remaining_matches)
-        if args.fit:
-            history = load_completed_matches(db, competition.id, names, before=cut)
-            model = DixonColesModel().fit(history)
-            source = f"refit on {len(history)} matches before {cut:%Y-%m-%d}"
-        else:
-            model = DixonColesModel.from_artifact(read_artifact(version_row.artifact_path))
-            source = f"{version_row.name} {version_row.version} ({version_row.artifact_path})"
-
-        table = current_table(names, played)
-        remaining = [(names[m.home_team_id], names[m.away_team_id]) for m in remaining_matches]
+        history = load_completed_matches(db, competition.id, names, before=cut)
+        model = DixonColesModel().fit(history)
+        source = f"fit on {len(history)} matches before {cut:%Y-%m-%d}"
+        model_team_names = [names[team_id] for team_id in team_ids]
+        bootstrap_started = perf_counter()
+        parameter_ensemble = bootstrap_parameter_ensemble(
+            history,
+            model_team_names,
+            base_model=model,
+            n_bootstrap=args.parameter_bootstrap,
+            seed=args.seed + 1,
+        )
+        bootstrap_seconds = perf_counter() - bootstrap_started
         forced = parse_forced(args.force)
-        unknown = sorted(set(forced) - {f"{home} vs {away}" for home, away in remaining})
-        if unknown:
-            raise SystemExit(f"--force fixture(s) not in the remaining set: {unknown}")
 
         print("=" * 78)
         print(f"  XGoal season simulation - {competition.code} ({competition.name})")
@@ -306,16 +286,43 @@ def main() -> int:
             f"  season={season.label}  as_of_matchday={as_of}  "
             f"sims={args.sims}  seed={args.seed}"
         )
-        print(f"  fixtures played={len(played)} simulated={len(remaining)}  model={source}")
+        print(
+            f"  fixtures played={len(played)} simulated={len(fixtures) - len(played)}  "
+            f"model={source}"
+        )
+        print(
+            f"  parameter bootstrap={args.parameter_bootstrap} fits in "
+            f"{bootstrap_seconds:.3f}s"
+        )
         if forced:
             print(f"  forced results: {forced}")
 
-        results = simulate(model, table, remaining, args.sims, args.seed, forced)
+        simulation_started = perf_counter()
+        results = simulate_vectorized(
+            season_id=season.id,
+            team_ids=team_ids,
+            team_names=names,
+            fixtures=fixtures,
+            parameter_ensemble=parameter_ensemble,
+            n_simulations=args.sims,
+            seed=args.seed,
+            forced_results=forced,
+        )
+        simulation_seconds = perf_counter() - simulation_started
+        results["runtime_seconds"] = round(simulation_seconds, 6)
         results["context"] = {
             "competition": competition.code,
             "season": season.label,
             "as_of_matchday": as_of,
             "model_source": source,
+            "derived_calendar": derived_calendar,
+            "fixture_calendar_note": (
+                "The 311 remaining fixtures are derived from the missing directed "
+                "round-robin pairs; their real matchdays and kickoff dates are unknown."
+                if derived_calendar
+                else None
+            ),
+            "parameter_bootstrap_fits": args.parameter_bootstrap,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
         run = write_simulation_run(
@@ -329,7 +336,8 @@ def main() -> int:
             forced_results=forced or None,
         )
         print()
-        print_table(results["teams"])
+        print_table(results["teams"])  # type: ignore[arg-type]
+        print(f"\n  vectorized simulation and ranking: {simulation_seconds:.3f}s")
     finally:
         db.close()
 

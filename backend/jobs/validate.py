@@ -28,6 +28,7 @@ from sqlalchemy import text
 
 from app.database import SessionLocal
 from app.models import Match, Team
+from app.standings import rank_standings
 
 
 class V:
@@ -433,45 +434,17 @@ def load_reference_tables():
 def order_final_table(stats, matches):
     """Team ids in published La Liga order.
 
-    Reglamento General art. 201, as used by the published tables: points, then
-    head-to-head points among the tied clubs, then head-to-head goal difference,
-    then overall goal difference, then goals scored.
+    Delegates to the shared M14 standings implementation. ``stats`` is retained
+    for compatibility with the validator's reconstruction pipeline.
     """
-    by_points = defaultdict(list)
-    for team_id, row in stats.items():
-        by_points[row["p"]].append(team_id)
-
-    ordered = []
-    for points in sorted(by_points, reverse=True):
-        block = by_points[points]
-        if len(block) == 1:
-            ordered.extend(block)
-            continue
-        mini = {team_id: {"p": 0, "gd": 0} for team_id in block}
-        for m in matches:
-            if m.home_team_id in mini and m.away_team_id in mini:
-                home, away = mini[m.home_team_id], mini[m.away_team_id]
-                home["gd"] += m.home_goals - m.away_goals
-                away["gd"] += m.away_goals - m.home_goals
-                if m.home_goals > m.away_goals:
-                    home["p"] += 3
-                elif m.home_goals < m.away_goals:
-                    away["p"] += 3
-                else:
-                    home["p"] += 1
-                    away["p"] += 1
-        ordered.extend(
-            sorted(
-                block,
-                key=lambda team_id: (
-                    -mini[team_id]["p"],
-                    -mini[team_id]["gd"],
-                    -(stats[team_id]["gf"] - stats[team_id]["ga"]),
-                    -stats[team_id]["gf"],
-                ),
-            )
-        )
-    return ordered
+    del stats
+    if not matches:
+        return []
+    season_ids = {match.season_id for match in matches}
+    if len(season_ids) != 1:
+        raise ValueError("final-table ranking requires matches from exactly one season")
+    season_id = next(iter(season_ids))
+    return [row.team_id for row in rank_standings(matches, season_id)]
 
 
 def check_final_table_order(db, v):
