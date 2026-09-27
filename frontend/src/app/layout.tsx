@@ -1,49 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "xgoal — La Liga Analytics",
-  description:
-    "La Liga analytics platform with Dixon-Coles model predictions, season simulator, and live standings.",
-};
+export const metadata: Metadata = { title: "xgoal | La Liga intelligence", description: "La Liga analytics platform with Dixon-Coles model predictions and live standings." };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en">
-      <body className="min-h-screen flex flex-col">
-        <header className="border-b border-gray-800 px-6 py-4">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <a href="/" className="text-xl font-bold text-primary-400">
-              xgoal
-            </a>
-            <nav className="flex gap-6 text-sm text-gray-400">
-              <a href="/" className="hover:text-white transition-colors">
-                Dashboard
-              </a>
-              <a href="/fixtures" className="hover:text-white transition-colors">
-                Fixtures
-              </a>
-              <a href="/standings" className="hover:text-white transition-colors">
-                Standings
-              </a>
-              <a href="/simulation" className="hover:text-white transition-colors">
-                Simulator
-              </a>
-            </nav>
-          </div>
-        </header>
-        <main className="flex-1 max-w-7xl mx-auto w-full px-6 py-8">
-          {children}
-        </main>
-        <footer className="border-t border-gray-800 px-6 py-4 text-center text-xs text-gray-600">
-          Data updated <span id="data-freshness">—</span> &middot; Powered by
-          football-data.co.uk & API-Football
-        </footer>
-      </body>
-    </html>
-  );
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return <html lang="en" className="dark"><body className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-teal-950/25 via-background to-background"><header className="border-b border-border/80"><div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8"><a href="/" className="flex items-center gap-2 text-lg font-semibold tracking-tight"><span className="grid size-7 place-items-center rounded-md bg-primary text-sm font-bold text-primary-foreground">x</span>xgoal</a><nav className="flex items-center gap-1 text-sm"><a href="/standings" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground">Standings</a><a href="/fixtures" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground">Fixtures</a><a href="/scoreboard" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground">Scoreboard</a><a href="/simulator" className="rounded-md px-3 py-1.5 text-muted-foreground transition-colors hover:text-foreground">Simulator</a></nav></div></header><main className="mx-auto flex w-full max-w-6xl flex-1 px-5 py-10 sm:px-8 sm:py-14">{children}</main><footer className="border-t border-border/80 px-5 py-5 text-center text-xs text-muted-foreground">xgoal / La Liga forecasting workspace</footer></body></html>;
 }
