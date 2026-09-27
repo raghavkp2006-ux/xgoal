@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  body {
-    @apply bg-gray-950 text-gray-100 antialiased;
-  }
+  :root { --background: 222 47% 7%; --foreground: 210 40% 96%; --card: 222 40% 10%; --card-foreground: 210 40% 96%; --border: 217 29% 18%; --muted: 217 25% 15%; --muted-foreground: 215 20% 65%; --primary: 174 72% 45%; --primary-foreground: 222 47% 7%; }
+  * { @apply border-border; }
+  body { @apply bg-background text-foreground antialiased; }
 }
