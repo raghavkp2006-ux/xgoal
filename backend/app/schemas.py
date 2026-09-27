@@ -301,3 +301,57 @@ class PredictionResponse(BaseModel):
     expected_away_goals: Optional[float] = None
     score_matrix: Optional[dict[str, Any]] = None
     is_hypothetical: bool = False
+
+
+# ── Model Versions ────────────────────────────────────────────────────────
+
+class ModelVersionResponse(BaseModel):
+    """A fitted model artifact, with how many logged predictions cite it."""
+
+    id: int
+    name: str
+    version: str
+    is_production: bool
+    trained_at: datetime
+    train_start: date
+    train_end: date
+    n_train_matches: int
+    prediction_count: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Prediction log (scoreboard) ──────────────────────────────────────────
+
+class PredictionLogResponse(BaseModel):
+    """A single logged prediction joined with its match's actual result.
+
+    Always scoped to one ``model_version_id`` by the caller — predictions from
+    different fitted models are never comparable in aggregate, so the
+    scoreboard query filters to a single version rather than pooling every
+    row in the table.
+    """
+
+    id: int
+    match_id: int
+    model_version_id: int
+    model_name: str
+    model_version: str
+    as_of: datetime
+    p_home: float
+    p_draw: float
+    p_away: float
+    expected_home_goals: Optional[float] = None
+    expected_away_goals: Optional[float] = None
+    kickoff_utc: datetime
+    status: str
+    home_team_id: int
+    away_team_id: int
+    home_goals: Optional[int] = None
+    away_goals: Optional[int] = None
+    # De-vigged closing-odds implied probabilities (Part 4.4 benchmark) — the
+    # sharpest publicly available forecast, not a model feature (D27). Null
+    # whenever the source row has no closing-odds columns (postponed/missing).
+    closing_p_home: Optional[float] = None
+    closing_p_draw: Optional[float] = None
+    closing_p_away: Optional[float] = None
