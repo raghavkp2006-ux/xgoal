@@ -52,6 +52,11 @@ inputs and seed produce the same result.
 `GET /api/v1/simulation?season=2026/27` reads the newest cached baseline run;
 it does not start a simulation. The separate `simulation.yml` workflow runs
 daily at 07:00 UTC and can also be started manually; it has no push trigger.
+The application lifespan opens the DB pool and warms its worker thread before
+serving requests. The GET uses one season/latest-run query and returns an ETag
+with `Cache-Control`; matching `If-None-Match` requests receive `304`. The pool
+recycles connections after four minutes rather than issuing a network pre-ping
+on every checkout.
 
 ## Historical backtest
 

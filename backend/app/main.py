@@ -1,15 +1,19 @@
 """FastAPI application entry point for xgoal backend."""
 
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import AsyncGenerator
 
-from fastapi import FastAPI, Request
+import anyio
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.config import settings
-from app.database import SessionLocal
+from app.database import SessionLocal, engine
 from app.models import DataFreshness
 from app.routers import (
     competitions,
@@ -23,10 +27,23 @@ from app.routers import (
 
 limiter = Limiter(key_func=get_remote_address)
 
+
+def _warm_database_pool() -> None:
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1"))
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncGenerator[None, None]:
+    await anyio.to_thread.run_sync(_warm_database_pool)
+    yield
+
+
 app = FastAPI(
     title="xgoal — La Liga Analytics",
     version="0.1.0",
     description="La Liga analytics platform with Dixon-Coles model and season simulator",
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter

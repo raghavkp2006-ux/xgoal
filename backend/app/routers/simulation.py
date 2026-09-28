@@ -6,15 +6,17 @@ POST /api/v1/simulation/whatif       → 2,000-sim what-if with forced results
 
 from __future__ import annotations
 
+import hashlib
 import os
 import sys
 from datetime import datetime, time, timezone
 from time import perf_counter
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from sqlalchemy import or_, text
+from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -33,27 +35,38 @@ def get_simulation(
         None,
         description="Season label (e.g. '2025/26'). Defaults to the current season.",
     ),
+    if_none_match: str | None = Header(None),
     db: Session = Depends(get_db),
-) -> dict[str, Any]:
+) -> Response:
     """Return the most recent baseline simulation run for a season.
 
     This reads from the ``simulation_runs`` table — it never re-runs a
     simulation.  Baseline runs have ``forced_results IS NULL``.
     """
-    season_row = _resolve_season(db, season)
-    run: SimulationRun | None = (
-        db.query(SimulationRun)
-        .filter(
-            SimulationRun.season_id == season_row.id,
+    season_filter = Season.label == season if season else Season.is_current.is_(True)
+    statement = (
+        select(
+            SimulationRun.id,
+            SimulationRun.season_id,
+            SimulationRun.model_version_id,
+            SimulationRun.n_simulations,
+            SimulationRun.random_seed,
+            SimulationRun.as_of_matchday,
+            SimulationRun.run_at,
+            SimulationRun.results,
+        )
+        .join(Season, SimulationRun.season_id == Season.id)
+        .where(
+            season_filter,
             or_(
                 SimulationRun.forced_results.is_(None),
                 text("forced_results = 'null'::jsonb"),
             ),
         )
         .order_by(SimulationRun.run_at.desc())
-        .first()
+        .limit(1)
     )
-
+    run = db.execute(statement).one_or_none()
     if run is None:
         raise HTTPException(
             status_code=404,
@@ -68,7 +81,7 @@ def get_simulation(
     results.pop("raw_simulations", None)
     results.pop("finish_position_counts", None)
 
-    return {
+    payload = {
         "id": run.id,
         "season_id": run.season_id,
         "model_version_id": run.model_version_id,
@@ -78,6 +91,18 @@ def get_simulation(
         "run_at": run.run_at.isoformat() if run.run_at else None,
         **results,
     }
+    response = JSONResponse(content=payload)
+    etag = f'"{hashlib.sha256(response.body).hexdigest()}"'
+    headers = {
+        "ETag": etag,
+        "Cache-Control": "public, max-age=300, stale-while-revalidate=3600",
+    }
+    if if_none_match:
+        candidates = (candidate.strip() for candidate in if_none_match.split(","))
+        if any(candidate in {"*", etag, f"W/{etag}"} for candidate in candidates):
+            return Response(status_code=304, headers=headers)
+    response.headers.update(headers)
+    return response
 
 
 # ---------------------------------------------------------------------------
