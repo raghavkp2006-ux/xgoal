@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
-from typing import Hashable, Protocol
+from typing import Hashable, Protocol, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
+
 
 class SeasonMatch(Protocol):
     """The match fields needed by the pure standings ranker."""
@@ -49,7 +50,7 @@ class _Totals:
     points: int = 0
 
 
-def rank_standings(matches: list[SeasonMatch], season_id: int) -> list[TeamRow]:
+def rank_standings(matches: Sequence[SeasonMatch], season_id: int) -> list[TeamRow]:
     """Rebuild and rank one season from its complete fixture list.
 
     Include scheduled but unfinished fixtures in ``matches`` so the ranker can
@@ -181,7 +182,7 @@ def rank_standings(matches: list[SeasonMatch], season_id: int) -> list[TeamRow]:
 
 
 def rank_standings_many(
-    matches: list[SeasonMatch],
+    matches: Sequence[SeasonMatch],
     season_id: int,
     team_ids: list[Hashable],
     home_goals: NDArray[np.int64],

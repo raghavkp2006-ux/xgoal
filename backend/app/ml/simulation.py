@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
-from typing import Hashable, Mapping, Sequence
+from typing import Any, Hashable, Mapping, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -77,6 +77,8 @@ def _parameter_vector(
     model: DixonColesModel,
     team_names: Sequence[str],
     rng: np.random.Generator,
+    *,
+    sample_unseen: bool = True,
 ) -> FloatMatrix:
     attacks = np.asarray([model.attack.get(team, 0.0) for team in team_names])
     defences = np.asarray([model.defence.get(team, 0.0) for team in team_names])
@@ -85,9 +87,9 @@ def _parameter_vector(
     attack_sd = float(np.std(known_attacks)) if known_attacks.size else 0.0
     defence_sd = float(np.std(known_defences)) if known_defences.size else 0.0
     for index, team in enumerate(team_names):
-        if team not in model.attack:
+        if sample_unseen and team not in model.attack:
             attacks[index] = rng.normal(0.0, attack_sd)
-        if team not in model.defence:
+        if sample_unseen and team not in model.defence:
             defences[index] = rng.normal(0.0, defence_sd)
     return np.concatenate(
         (attacks, defences, np.asarray([model.home_adv, model.rho], dtype=np.float64))
@@ -108,7 +110,7 @@ def bootstrap_parameter_ensemble(
     if not training_matches:
         raise ValueError("parameter bootstrap requires training matches")
     rng = np.random.default_rng(seed)
-    vectors = [_parameter_vector(base_model, team_names, rng)]
+    vectors = [_parameter_vector(base_model, team_names, rng, sample_unseen=False)]
     size = len(training_matches)
     for replicate in range(n_bootstrap):
         fit: DixonColesModel | None = None
@@ -242,7 +244,6 @@ def simulate_season(
 
     ordered_teams = list(team_ids)
     team_index = {team_id: index for index, team_id in enumerate(ordered_teams)}
-    names = [team_names[team_id] for team_id in ordered_teams]
     fixture_home = np.asarray(
         [team_index[fixture.home_team_id] for fixture in fixtures], dtype=np.int64
     )
@@ -306,8 +307,11 @@ def simulate_season(
     all_home_goals = np.empty((n_simulations, len(fixtures)), dtype=np.int64)
     all_away_goals = np.empty_like(all_home_goals)
     for index in played_indices:
-        all_home_goals[:, index] = int(fixtures[index].home_goals)
-        all_away_goals[:, index] = int(fixtures[index].away_goals)
+        fixture = fixtures[index]
+        if fixture.home_goals is None or fixture.away_goals is None:
+            raise AssertionError("played fixture has missing goals")
+        all_home_goals[:, index] = fixture.home_goals
+        all_away_goals[:, index] = fixture.away_goals
     if simulated_indices:
         all_home_goals[:, simulated_indices] = sampled_goals[:, :, 0]
         all_away_goals[:, simulated_indices] = sampled_goals[:, :, 1]
@@ -337,7 +341,8 @@ def simulate_season(
         ],
         axis=0,
     )
-    rows: list[dict[str, object]] = []
+    points_interval = np.quantile(final_points, [0.025, 0.975], axis=0)
+    rows: list[dict[str, Any]] = []
     for team_position, team_id in enumerate(ordered_teams):
         distribution = {
             str(position + 1): round(
@@ -369,6 +374,11 @@ def simulate_season(
                 "expected_final_points": round(
                     float(final_points[:, team_position].mean()), 3
                 ),
+                "expected_final_points_95ci": {
+                    "lower": round(float(points_interval[0, team_position]), 3),
+                    "upper": round(float(points_interval[1, team_position]), 3),
+                    "level": 0.95,
+                },
                 "current_points": current_by_team[team_id].points,
                 "current_goal_difference": current_by_team[team_id].goal_difference,
                 "played": current_by_team[team_id].played,
