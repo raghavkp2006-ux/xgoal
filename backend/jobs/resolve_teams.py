@@ -21,16 +21,25 @@ import urllib.request
 from collections import OrderedDict
 
 import yaml
-from rapidfuzz import fuzz, process as fuzz_process
+from rapidfuzz import fuzz
+from rapidfuzz import process as fuzz_process
 
 # Ensure package discovery
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.database import engine
 from sqlalchemy import text
 
+from app.database import engine
+
 DIVISIONS = ["SP1", "SP2"]
-ALIAS_FILE = os.path.join(os.path.dirname(__file__), "..", "..", "db", "aliases", "football_data_co_uk.yaml")
+ALIAS_FILE = os.path.join(
+    os.path.dirname(__file__),
+    "..",
+    "..",
+    "db",
+    "aliases",
+    "football_data_co_uk.yaml",
+)
 RAW_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "data", "raw")
 
 # Season codes: SSSS = two-digit start year + two-digit end year
@@ -211,12 +220,19 @@ def update_alias_file(proposals: OrderedDict, existing_file: str = ALIAS_FILE):
     with open(existing_file, "w", encoding="utf-8") as f:
         f.writelines(lines)
 
-    print(f"\n✅ Wrote {len(merged)} mappings to {existing_file}")
+    print(
+        f"\n✅ Wrote {len(merged)} mappings to {existing_file}"
+    )
 
 
 def main():
     parser = argparse.ArgumentParser(description="Resolve football-data.co.uk team names")
-    parser.add_argument("--seasons", type=int, default=10, help="Number of seasons to scan (default 10)")
+    parser.add_argument(
+        "--seasons",
+        type=int,
+        default=10,
+        help="Number of seasons to scan (default 10)",
+    )
     args = parser.parse_args()
 
     codes = season_codes(args.seasons)
@@ -245,7 +261,7 @@ def main():
     proposals = propose_mappings(all_names, canonical)
     unmapped = {k: v for k, v in proposals.items() if v is None}
 
-    print(f"\n=== Proposed Mappings ===")
+    print("\n=== Proposed Mappings ===")
     for raw, canon in proposals.items():
         if canon:
             print(f"  '{raw}' → '{canon}'")

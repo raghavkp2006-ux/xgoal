@@ -17,10 +17,16 @@ Usage:
     python -m jobs.ingest_direct --div SP1
     python -m jobs.ingest_direct --all
 """
-import csv, io, os, sys, time, warnings
+import csv
+import io
+import os
+import sys
+import time
+import warnings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, datetime, timezone
 from pathlib import Path
+
 warnings.filterwarnings("ignore")
 # Windows consoles default to cp1252; force UTF-8 so accented team names never crash
 try:
@@ -29,7 +35,9 @@ try:
 except Exception:
     pass
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import httpx; import yaml
+import httpx
+import yaml
+
 from app.database import SessionLocal
 from app.models import Competition, Match, Season, Team
 
@@ -221,7 +229,7 @@ def main():
                 done += 1
                 try:
                     cache[(div, sc)] = fut.result()
-                except Exception as e:
+                except Exception:
                     cache[(div, sc)] = None
                 if done % 20 == 0 or done == len(tasks):
                     got = sum(1 for c in cache.values() if c)

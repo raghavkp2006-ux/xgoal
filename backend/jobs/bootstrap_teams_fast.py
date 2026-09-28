@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 """Fast bootstrap: download 1 season per division, extract names, insert teams + aliases."""
-import csv, io, os, sys, urllib.request
+import csv
+import io
+import os
+import sys
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import yaml
+
 from app.database import SessionLocal
 from app.models import Team
 

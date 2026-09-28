@@ -38,6 +38,12 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 
+[tool.ruff.lint.per-file-ignores]
+"alembic/versions/0001_initial_schema.py" = ["E501"] # Historical schema DDL is kept intact; wrapping migration literals is a separate cleanup.
+"jobs/bootstrap_teams_fast.py" = ["E501", "E701", "E722"] # Legacy bootstrap parsing uses compact branches and permissive row handling; refactor separately.
+"jobs/ingest_api.py" = ["E402", "E501", "E701", "E702", "E722"] # Legacy ingestion CLI retains path bootstrap and compact parsing/error handling; refactor separately.
+"jobs/ingest_direct.py" = ["E402", "E501", "E701", "E702", "E722"] # Legacy ingestion CLI retains path bootstrap and compact parsing/error handling; refactor separately.
+
 [tool.mypy]
 python_version = "3.11"
 strict = true

@@ -4,16 +4,18 @@
 Writes results to backend/diag_out.txt as UTF-8 (avoids Windows console encoding
 issues with accented team names).
 """
-import os, sys
+import os
+import sys
 from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.dirname(__file__))
 
 import yaml
+from ingest_direct import ALIAS_FILE, DIVS, fetch_cached, parse_csv, season_codes
+
 from app.database import SessionLocal
 from app.models import Team
-from ingest_direct import fetch_cached, parse_csv, DIVS, season_codes, ALIAS_FILE
 
 OUT = Path(__file__).resolve().parent.parent / "diag_out.txt"
 buf = []

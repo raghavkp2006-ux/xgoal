@@ -23,7 +23,10 @@ def test_get_prediction_returns_latest_stored_prediction():
     prediction_query = MagicMock()
     db.query.side_effect = [match_query, prediction_query]
     match_query.filter.return_value.first.return_value = SimpleNamespace(id=42)
-    prediction_query.join.return_value.filter.return_value.order_by.return_value.first.return_value = (
+    ordered_predictions = (
+        prediction_query.join.return_value.filter.return_value.order_by.return_value
+    )
+    ordered_predictions.first.return_value = (
         SimpleNamespace(
             match_id=42,
             model_version=SimpleNamespace(name="dixon_coles", version="v2"),
@@ -64,7 +67,9 @@ def test_get_prediction_returns_404_when_match_has_no_prediction():
     prediction_query = MagicMock()
     db.query.side_effect = [match_query, prediction_query]
     match_query.filter.return_value.first.return_value = SimpleNamespace(id=42)
-    prediction_query.join.return_value.filter.return_value.order_by.return_value.first.return_value = None
+    (
+        prediction_query.join.return_value.filter.return_value.order_by.return_value.first.return_value
+    ) = None
 
     try:
         response = _client_with_db(db).get("/api/v1/predictions/42")

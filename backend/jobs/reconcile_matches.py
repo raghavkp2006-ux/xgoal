@@ -17,11 +17,10 @@ from pathlib import Path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, os.path.dirname(__file__))
 
+from ingest_direct import DIVS, fetch_cached, load_aliases, parse_csv, season_codes
 from sqlalchemy import text
 
 from app.database import SessionLocal
-from ingest_direct import (DIVS, fetch_cached, load_aliases, parse_csv,
-                           season_codes)
 
 OUT = Path(__file__).resolve().parent.parent / "reconcile_report.txt"
 report = []

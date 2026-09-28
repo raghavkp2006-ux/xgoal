@@ -67,7 +67,7 @@ class ApiFootballClient:
             if not data.get("get", ""):
                 data["get"] = endpoint
             return data
-        except httpx.HTTPError as exc:
+        except httpx.HTTPError:
             elapsed_ms = int((time.monotonic() - t0) * 1000)
             log_entry = ApiRequestLog(
                 requested_at=datetime.now(timezone.utc),

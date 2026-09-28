@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """Phase 1.3 — Match ingestion via API-Football (v3)."""
-import argparse, os, sys, warnings
+import argparse
+import os
+import sys
+import warnings
 from datetime import datetime, timezone
 from pathlib import Path
+
 warnings.filterwarnings("ignore")
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-import httpx, yaml
+import httpx
+import yaml
+
 from app.database import SessionLocal
 from app.models import Competition, Match, Season, Team
 

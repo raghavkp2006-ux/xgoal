@@ -7,8 +7,8 @@ import argparse
 import sys
 from collections import Counter
 from datetime import timedelta
-from time import perf_counter
 from pathlib import Path
+from time import perf_counter
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 

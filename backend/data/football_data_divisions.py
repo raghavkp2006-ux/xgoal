@@ -1,6 +1,7 @@
 """Division codes for football-data.co.uk multi-league ingestion (M9)."""
 from dataclasses import dataclass
 
+
 @dataclass
 class Division:
     code: str

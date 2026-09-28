@@ -5,7 +5,6 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 # ── Competitions ──────────────────────────────────────────────────────────
 
 class CompetitionCreate(BaseModel):

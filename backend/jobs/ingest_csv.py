@@ -14,11 +14,9 @@ import argparse
 import csv
 import hashlib
 import io
-import json
 import os
 import sys
 import warnings
-from collections import OrderedDict
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
@@ -32,9 +30,10 @@ warnings.filterwarnings("ignore")
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from app.database import SessionLocal, engine
-from app.models import Competition, Match, Season, Team, TeamAlias
-from sqlalchemy import text
+from sqlalchemy import text  # noqa: E402
+
+from app.database import SessionLocal  # noqa: E402
+from app.models import Competition, Match, Season, Team  # noqa: E402
 
 # ── paths ──────────────────────────────────────────────────────────────────
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -161,8 +160,7 @@ def extract_closing_probs(row: dict) -> dict:
 def upsert_competitions(db) -> dict[str, Competition]:
     """Insert/update competition rows from divisions config, return {code: comp}."""
     # Import divisions dynamically
-    divs = []
-    exec(open(str(DIVISIONS_CONFIG), encoding="utf-8").read(), globals := {})
+    exec(open(str(DIVISIONS_CONFIG), encoding="utf-8").read(), {})
     # Use hardcoded list instead
     div_data = [
         ("SP1", "La Liga", "Spain", 1),
@@ -296,8 +294,6 @@ def ingest_csv(
     has_time_col = "Time" in rows[0]
     inserted = updated = skipped = 0
     errors = []
-    matched_home = set()
-
     for row in rows:
         # Skip blank rows where Div/Date/HomeTeam are all missing
         if not row.get("Div") and not row.get("Date") and not row.get("HomeTeam"):
@@ -486,7 +482,7 @@ def main():
                 continue
             seas = upsert_seasons(db, comp.id, code, years)
             season_map[code] = seas
-        print(f"Seasons ensured")
+        print("Seasons ensured")
 
         # 3. Ingest CSVs
         total_inserted = total_updated = 0
@@ -508,7 +504,7 @@ def main():
                 else:
                     print(f"  {code} {sc}: not available")
 
-        print(f"\n=== CSV Ingestion Summary ===")
+        print("\n=== CSV Ingestion Summary ===")
         print(f"  Total inserted: {total_inserted}")
         print(f"  Total updated:  {total_updated}")
         if errors_all:

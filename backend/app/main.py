@@ -7,10 +7,10 @@ from typing import AsyncGenerator
 import anyio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import text
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from sqlalchemy import text
 
 from app.config import settings
 from app.database import SessionLocal, engine

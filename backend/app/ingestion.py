@@ -19,7 +19,13 @@ from app.models import (
 )
 
 
-def _upsert_freshness(db: Session, source: str, success: bool, error: Optional[str] = None, rows: int = 0):
+def _upsert_freshness(
+    db: Session,
+    source: str,
+    success: bool,
+    error: Optional[str] = None,
+    rows: int = 0,
+):
     """Update or insert a data_freshness row."""
     row = db.query(DataFreshness).filter(DataFreshness.source == source).first()
     now = datetime.now(timezone.utc)
@@ -47,7 +53,7 @@ def seed_competition(db: Session, client: ApiFootballClient, api_id: int) -> Com
     """Fetch a league from API and create/update the competition + seasons."""
     data = client.get_leagues(api_id)
     league_info = data["response"][0]
-    l = league_info["league"]
+    league = league_info["league"]
 
     # Upsert competition
     comp = db.query(Competition).filter(Competition.api_football_id == api_id).first()
@@ -58,15 +64,15 @@ def seed_competition(db: Session, client: ApiFootballClient, api_id: int) -> Com
         country_name = str(country)
 
     if comp:
-        comp.code = l["name"][:50].upper().replace(" ", "_")
-        comp.name = l["name"]
+        comp.code = league["name"][:50].upper().replace(" ", "_")
+        comp.name = league["name"]
         comp.country = country_name
     else:
         comp = Competition(
-            code=l["name"][:50].upper().replace(" ", "_"),
-            name=l["name"],
+            code=league["name"][:50].upper().replace(" ", "_"),
+            name=league["name"],
             country=country_name,
-            tier=1 if l.get("type") == "League" else 2,
+            tier=1 if league.get("type") == "League" else 2,
             api_football_id=api_id,
         )
         db.add(comp)
@@ -194,7 +200,6 @@ def ingest_fixtures(
         goals = item.get("goals", {}) or {}
         score = item.get("score", {}) or {}
         ht = (score.get("halftime") or {}) if isinstance(score, dict) else {}
-        stats = item.get("statistics", [])
         league = item.get("league", {})
 
         teams_item = item.get("teams", {}) or {}
@@ -421,7 +426,6 @@ def ingest_players(
 
 def full_ingest(api_league_id: int = 140, season_year: int | None = None) -> None:
     """Full pipeline: competition -> teams -> fixtures -> standings -> players."""
-    from datetime import datetime
 
     client = ApiFootballClient()
     db = SessionLocal()

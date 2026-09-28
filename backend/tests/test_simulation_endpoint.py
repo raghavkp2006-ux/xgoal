@@ -5,7 +5,6 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 from fastapi import Response
-
 from sqlalchemy.orm import Session
 
 from app.routers.simulation import get_simulation

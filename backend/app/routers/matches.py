@@ -3,14 +3,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Match, MatchEvent, Player, PlayerSeasonStat
+from app.models import Match, Player, PlayerSeasonStat
 from app.schemas import (
     MatchCreate,
     MatchResponse,
     PlayerCreate,
     PlayerResponse,
-    PlayerSeasonStatCreate,
-    PlayerSeasonStatResponse,
 )
 
 router = APIRouter(prefix="/api/v1/matches", tags=["matches"])

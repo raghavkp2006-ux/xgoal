@@ -7,8 +7,6 @@ POST /api/v1/simulation/whatif       → 2,000-sim what-if with forced results
 from __future__ import annotations
 
 import hashlib
-import os
-import sys
 from datetime import datetime, time, timezone
 from time import perf_counter
 from typing import Any
@@ -20,7 +18,7 @@ from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Match, ModelVersion, Season, SimulationRun
+from app.models import Match, Season, SimulationRun
 
 router = APIRouter(prefix="/api/v1/simulation", tags=["simulation"])
 
@@ -146,7 +144,6 @@ def run_whatif(
     """
     # Lazy imports — these pull in numpy/scipy which are heavy at import time
     from app.ml.dataset import (  # noqa: E402
-        get_competition,
         load_completed_matches,
         load_team_names,
     )
@@ -155,6 +152,8 @@ def run_whatif(
         Fixture,
         bootstrap_parameter_ensemble,
         derive_missing_round_robin_fixtures,
+    )
+    from app.ml.simulation import (
         simulate_season as simulate_vectorized,
     )
 
@@ -230,7 +229,11 @@ def run_whatif(
 
     # Fit model and bootstrap (small ensemble for speed)
     cut = datetime.combine(
-        season_row.start_date if hasattr(season_row, "start_date") else datetime.now(timezone.utc).date(),
+        (
+            season_row.start_date
+            if hasattr(season_row, "start_date")
+            else datetime.now(timezone.utc).date()
+        ),
         time.min,
         tzinfo=timezone.utc,
     )
@@ -286,9 +289,15 @@ def run_whatif(
     return {
         "n_simulations": WHATIF_SIMS,
         "random_seed": seed,
-        "forced_results": {fr.home_team + " vs " + fr.away_team: [fr.home_goals, fr.away_goals] for fr in body.forced_results},
+        "forced_results": {
+            f"{fr.home_team} vs {fr.away_team}": [fr.home_goals, fr.away_goals]
+            for fr in body.forced_results
+        },
         "runtime_seconds": round(elapsed, 3),
-        "note": f"What-if result from {WHATIF_SIMS} simulations (not 10,000). Session-only — not persisted.",
+        "note": (
+            f"What-if result from {WHATIF_SIMS} simulations (not 10,000). "
+            "Session-only — not persisted."
+        ),
         **results,
         "baseline_teams": baseline_teams,
     }

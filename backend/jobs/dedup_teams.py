@@ -199,7 +199,7 @@ def main():
             f"{sum(1 for v in counts.values() if v)}")
 
         renamed = {}        # old name -> new name (for YAML rewrite)
-        merged = deleted = moved_m = drop_m = moved_a = drop_a = 0
+        merged = moved_m = drop_m = moved_a = drop_a = 0
         skipped = []
 
         for target, members in MERGE_GROUPS.items():
@@ -296,4 +296,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -97,7 +97,10 @@ def write_snapshot(season_id: int) -> list[TableRow]:
 
         ranked, forms = compute_basic_standings(matches)
         stamp = datetime.now(timezone.utc)
-        latest_matchday = max((match.matchday for match in matches if match.matchday is not None), default=None)
+        latest_matchday = max(
+            (match.matchday for match in matches if match.matchday is not None),
+            default=None,
+        )
         for position, row in enumerate(ranked, start=1):
             db.add(
                 StandingsSnapshot(
