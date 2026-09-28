@@ -99,15 +99,30 @@ def test_existing_ft_row_is_not_modified(tmp_path: Path) -> None:
         engine.dispose()
 
 
+def test_successful_load_logs_insert_not_dry_run(tmp_path: Path) -> None:
+    db, engine = _session()
+    try:
+        output = StringIO()
+        report = load_calendar(
+            db,
+            _write_calendar(tmp_path / "calendar.csv"),
+            aliases={"Home": "Home", "Away": "Away"},
+            output=output,
+        )
+        assert report.inserted == 1
+        assert "INSERTED id=" in output.getvalue()
+        assert "WOULD INSERT" not in output.getvalue()
+    finally:
+        db.close()
+        engine.dispose()
+
+
 def test_repeated_load_is_idempotent(tmp_path: Path) -> None:
     db, engine = _session()
     try:
         calendar = _write_calendar(tmp_path / "calendar.csv")
         aliases = {"Home": "Home", "Away": "Away"}
-        first_output = StringIO()
-        first = load_calendar(db, calendar, aliases=aliases, output=first_output)
-        assert "WOULD INSERT" not in first_output.getvalue()
-        assert "INSERTED id=" in first_output.getvalue()
+        first = load_calendar(db, calendar, aliases=aliases, output=StringIO())
         first_rows = db.scalars(select(Match).where(Match.season_id == 1734)).all()
         first_snapshot = [
             (
