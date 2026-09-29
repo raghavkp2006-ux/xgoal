@@ -46,6 +46,28 @@
       {"position": 18, "team": "Granada", "played": 38, "won": 8, "drawn": 14, "lost": 16, "goals_for": 44, "goals_against": 61, "points": 38},
       {"position": 19, "team": "Levante", "played": 38, "won": 8, "drawn": 11, "lost": 19, "goals_for": 51, "goals_against": 76, "points": 35},
       {"position": 20, "team": "Deportivo Alavés", "played": 38, "won": 8, "drawn": 7, "lost": 23, "goals_for": 31, "goals_against": 65, "points": 31}
+    ],
+    "2024/25": [
+      {"position": 1, "team": "Barcelona", "played": 38, "won": 28, "drawn": 4, "lost": 6, "goals_for": 102, "goals_against": 39, "points": 88},
+      {"position": 2, "team": "Real Madrid", "played": 38, "won": 26, "drawn": 6, "lost": 6, "goals_for": 78, "goals_against": 38, "points": 84},
+      {"position": 3, "team": "Atlético Madrid", "played": 38, "won": 22, "drawn": 10, "lost": 6, "goals_for": 68, "goals_against": 30, "points": 76},
+      {"position": 4, "team": "Athletic Club", "played": 38, "won": 19, "drawn": 13, "lost": 6, "goals_for": 54, "goals_against": 29, "points": 70},
+      {"position": 5, "team": "Villarreal", "played": 38, "won": 20, "drawn": 10, "lost": 8, "goals_for": 71, "goals_against": 51, "points": 70},
+      {"position": 6, "team": "Real Betis", "played": 38, "won": 16, "drawn": 12, "lost": 10, "goals_for": 57, "goals_against": 50, "points": 60},
+      {"position": 7, "team": "Celta Vigo", "played": 38, "won": 16, "drawn": 7, "lost": 15, "goals_for": 59, "goals_against": 57, "points": 55},
+      {"position": 8, "team": "Rayo Vallecano", "played": 38, "won": 13, "drawn": 13, "lost": 12, "goals_for": 41, "goals_against": 45, "points": 52},
+      {"position": 9, "team": "Osasuna", "played": 38, "won": 12, "drawn": 16, "lost": 10, "goals_for": 48, "goals_against": 52, "points": 52},
+      {"position": 10, "team": "Mallorca", "played": 38, "won": 13, "drawn": 9, "lost": 16, "goals_for": 35, "goals_against": 44, "points": 48},
+      {"position": 11, "team": "Real Sociedad", "played": 38, "won": 13, "drawn": 7, "lost": 18, "goals_for": 35, "goals_against": 46, "points": 46},
+      {"position": 12, "team": "Valencia", "played": 38, "won": 11, "drawn": 13, "lost": 14, "goals_for": 44, "goals_against": 54, "points": 46},
+      {"position": 13, "team": "Getafe", "played": 38, "won": 11, "drawn": 9, "lost": 18, "goals_for": 34, "goals_against": 39, "points": 42},
+      {"position": 14, "team": "Espanyol", "played": 38, "won": 11, "drawn": 9, "lost": 18, "goals_for": 40, "goals_against": 51, "points": 42},
+      {"position": 15, "team": "Deportivo Alavés", "played": 38, "won": 10, "drawn": 12, "lost": 16, "goals_for": 38, "goals_against": 48, "points": 42},
+      {"position": 16, "team": "Girona", "played": 38, "won": 11, "drawn": 8, "lost": 19, "goals_for": 44, "goals_against": 60, "points": 41},
+      {"position": 17, "team": "Sevilla", "played": 38, "won": 10, "drawn": 11, "lost": 17, "goals_for": 42, "goals_against": 55, "points": 41},
+      {"position": 18, "team": "Leganés", "played": 38, "won": 9, "drawn": 13, "lost": 16, "goals_for": 39, "goals_against": 56, "points": 40},
+      {"position": 19, "team": "Las Palmas", "played": 38, "won": 8, "drawn": 8, "lost": 22, "goals_for": 40, "goals_against": 61, "points": 32},
+      {"position": 20, "team": "Real Valladolid", "played": 38, "won": 4, "drawn": 4, "lost": 30, "goals_for": 26, "goals_against": 90, "points": 16}
     ]
   }
 }

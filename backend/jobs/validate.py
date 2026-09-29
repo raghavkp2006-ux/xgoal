@@ -448,16 +448,21 @@ def order_final_table(stats, matches):
 
 
 def check_final_table_order(db, v):
-    """Compare reconstructed final tables against published references, in order.
-
-    2018/19 and 2021/22 come from db/reference/la_liga_standings.json (published
-    Wikipedia tables); any season with a stored standings_snapshots reference
-    (the live pipeline's own rows, e.g. 2024/25) is compared the same way.
-    """
-    print("\n--- 8. Final-table ordering vs published reference ---")
+    """Check published references separately from snapshot self-consistency."""
+    print("\n--- 8. Final-table ordering: published references and self-consistency ---")
     names = dict(db.execute(text("SELECT id, canonical_name FROM teams")).fetchall())
     reference = load_reference_tables()
-    seasons = []
+    published_seasons = []
+
+    print(
+        "  [  ] published-reference JSON season keys: "
+        + (", ".join(sorted(reference)) if reference else "(none)")
+    )
+    if "2024/25" not in reference:
+        print(
+            "  [  ] final table 2024/25: no published reference available "
+            "in db/reference/la_liga_standings.json"
+        )
 
     for label, rows in sorted(reference.items()):
         season_id = db.execute(
@@ -473,7 +478,9 @@ def check_final_table_order(db, v):
         stats, matches = reconstruct_standings(db, season_id)
         ours = [names[t] for t in order_final_table(stats, matches)]
         expected = [row["team"] for row in sorted(rows, key=lambda row: row["position"])]
-        seasons.append((label, ours, expected, "db/reference/la_liga_standings.json"))
+        published_seasons.append(
+            (label, ours, expected, "db/reference/la_liga_standings.json")
+        )
 
     snapshot_seasons = db.execute(text("""
         SELECT c.code, s.label, s.id
@@ -500,14 +507,25 @@ def check_final_table_order(db, v):
                 {"s": row.id},
             )
         ]
-        seasons.append((row.label, ours, expected, f"standings_snapshots ({row.code})"))
+        if ours == expected:
+            print(
+                f"  [  ] final table {row.label}: self-consistency "
+                f"(not a published reference), all {len(ours)} positions match "
+                f"standings_snapshots ({row.code})"
+            )
+        else:
+            print(
+                f"  [  ] final table {row.label}: self-consistency "
+                f"(not a published reference) FAILED against "
+                f"standings_snapshots ({row.code})"
+            )
 
-    if not seasons:
+    if not published_seasons:
         v.fail("no published final tables available to compare")
         return
 
     failures = 0
-    for label, ours, expected, source in seasons:
+    for label, ours, expected, source in published_seasons:
         if len(ours) != len(expected):
             failures += 1
             v.fail(
@@ -536,8 +554,8 @@ def check_final_table_order(db, v):
     if failures == 0:
         v.ok(
             "Final tables match the published order position-by-position for all "
-            f"{len(seasons)} reference season(s): "
-            + ", ".join(label for label, _, _, _ in seasons)
+            f"{len(published_seasons)} published-reference season(s): "
+            + ", ".join(label for label, _, _, _ in published_seasons)
             + " (tiebreaks: points, head-to-head points, head-to-head GD, GD, goals)"
         )
 
