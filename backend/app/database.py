@@ -1,9 +1,9 @@
+from collections.abc import Generator
 from functools import lru_cache
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
-from collections.abc import Generator
 from sqlalchemy.orm.session import Session
 
 from app.config import settings

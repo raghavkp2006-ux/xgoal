@@ -1,7 +1,7 @@
 """Matches, match events, and player stats API endpoints."""
-from sqlalchemy.sql.elements import ColumnElement
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.database import get_db
 from app.models import Match, Player, PlayerSeasonStat

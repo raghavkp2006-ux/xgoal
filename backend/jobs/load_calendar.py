@@ -14,8 +14,8 @@ import yaml
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
-from sqlalchemy.sql.dml import Insert
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.dml import Insert
 
 from app.database import SessionLocal
 from app.models import Competition, Match, MatchStatus, Season, Team

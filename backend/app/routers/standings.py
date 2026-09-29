@@ -32,7 +32,9 @@ def list_standings(
 
 
 @router.post("", response_model=StandingsSnapshotResponse, status_code=201)
-def create_standings(body: StandingsSnapshotCreate, db: Session = Depends(get_db)) -> StandingsSnapshot:
+def create_standings(
+    body: StandingsSnapshotCreate, db: Session = Depends(get_db)
+) -> StandingsSnapshot:
     entry = StandingsSnapshot(**body.model_dump())
     db.add(entry)
     db.commit()
