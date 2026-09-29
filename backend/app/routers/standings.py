@@ -14,7 +14,7 @@ def list_standings(
     season_id: int,
     matchday: int | None = None,
     db: Session = Depends(get_db),
-):
+) -> list[StandingsSnapshot]:
     subq = (
         db.query(StandingsSnapshot.season_id, StandingsSnapshot.computed_at)
         .filter(StandingsSnapshot.season_id == season_id)
@@ -32,7 +32,7 @@ def list_standings(
 
 
 @router.post("", response_model=StandingsSnapshotResponse, status_code=201)
-def create_standings(body: StandingsSnapshotCreate, db: Session = Depends(get_db)):
+def create_standings(body: StandingsSnapshotCreate, db: Session = Depends(get_db)) -> StandingsSnapshot:
     entry = StandingsSnapshot(**body.model_dump())
     db.add(entry)
     db.commit()

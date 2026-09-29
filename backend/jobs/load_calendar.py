@@ -14,6 +14,7 @@ import yaml
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.sql.dml import Insert
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -138,7 +139,8 @@ def _display(row: CalendarRow) -> str:
     )
 
 
-def _insert_statement(dialect_name: str, values: dict[str, object]):
+def _insert_statement(dialect_name: str, values: dict[str, object]) -> Insert:
+    insert: Insert
     if dialect_name == "postgresql":
         insert = pg_insert(Match)
     elif dialect_name == "sqlite":

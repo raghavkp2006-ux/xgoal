@@ -45,7 +45,7 @@ import pytest
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal, engine
+from app.database import SessionLocal, get_engine
 from app.ml.baselines import EloBaseline
 from app.ml.data import MatchIdentity, PointInTimeMatch
 from app.ml.dataset import load_match_stream
@@ -225,7 +225,7 @@ def test_a_real_postgres_view_filtered_to_kickoff_matches_the_full_table(db, sam
     """
     view_sample = random.Random(SAMPLE_SEED + 1).sample(sample, VIEW_SAMPLE_SIZE)
     checked = 0
-    with engine.connect() as connection:
+    with get_engine().connect() as connection:
         for match in view_sample:
             connection.execute(
                 text(
@@ -291,6 +291,7 @@ def test_tampering_with_future_results_cannot_change_a_forecast(db, stream, samp
 # --------------------------------------------------------------------------- #
 
 
+@pytest.mark.slow
 def test_the_leakage_harness_detects_a_leaky_feature(db, stream, sample):
     """A leaky feature moves; the real builder does not. Proves the test has teeth."""
     match = sample[0]

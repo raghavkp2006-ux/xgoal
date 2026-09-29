@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from sqlalchemy import text  # noqa: E402
 
-from app.database import engine  # noqa: E402
+from app.database import get_engine  # noqa: E402
 
 
 def main() -> int:
@@ -31,7 +31,7 @@ def main() -> int:
         params["pattern"] = f"%{args.filter}%"
     query += " ORDER BY canonical_name"
 
-    with engine.connect() as conn:
+    with get_engine().connect() as conn:
         rows = conn.execute(text(query), params).fetchall()
 
     print(f"canonical teams: {len(rows)}")

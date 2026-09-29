@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from sqlalchemy import text  # noqa: E402
 
-from app.database import engine  # noqa: E402
+from app.database import get_engine  # noqa: E402
 
 TABLES = (
     "competitions",
@@ -79,7 +79,7 @@ def main() -> int:
     parser.add_argument("--csv", default=None, help="also write the counts to this CSV")
     args = parser.parse_args()
 
-    with engine.connect() as conn:
+    with get_engine().connect() as conn:
         digest, rows = match_digest(conn)
         counts = {
             name: conn.execute(text(f"SELECT COUNT(*) FROM {name}")).scalar() for name in TABLES

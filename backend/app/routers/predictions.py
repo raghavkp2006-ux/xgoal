@@ -31,7 +31,7 @@ def list_predictions(
     resolved_only: bool = True,
     limit: int = Query(500, ge=1, le=2000),
     db: Session = Depends(get_db),
-):
+) -> list[PredictionLogResponse]:
     """List logged predictions for one model version, joined with match results."""
     q = (
         db.query(Prediction)
@@ -52,7 +52,7 @@ def list_predictions(
 
 
 @router.get("/{match_id}", response_model=PredictionResponse)
-def get_prediction(match_id: int, db: Session = Depends(get_db)):
+def get_prediction(match_id: int, db: Session = Depends(get_db)) -> PredictionResponse:
     """Return the newest stored prediction for a fixture."""
     match = db.query(Match).filter(Match.id == match_id).first()
     if not match:
@@ -75,7 +75,7 @@ def get_prediction(match_id: int, db: Session = Depends(get_db)):
 def create_hypothetical_prediction(
     body: HypotheticalPredictionRequest,
     db: Session = Depends(get_db),
-):
+) -> PredictionResponse:
     """Generate, but do not persist, a forecast for an arbitrary pairing."""
     if body.home_team_id == body.away_team_id:
         raise HTTPException(400, detail="home_team_id and away_team_id must differ")

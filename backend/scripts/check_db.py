@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from sqlalchemy import text  # noqa: E402
 
-from app.database import engine  # noqa: E402
+from app.database import get_engine  # noqa: E402
 
 # The 14 tables of the Phase 1 schema (see app/models.py). Kept as an explicit
 # list rather than derived from the models, so the check is independent of them.
@@ -50,7 +50,7 @@ def main() -> int:
     parser.add_argument("--counts-only", action="store_true", help="skip the schema check")
     args = parser.parse_args()
 
-    with engine.connect() as conn:
+    with get_engine().connect() as conn:
         actual = {
             name
             for (name,) in conn.execute(

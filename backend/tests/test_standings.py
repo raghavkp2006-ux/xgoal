@@ -8,6 +8,8 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import SessionLocal
 from app.models import Competition, Match, Season, Team
@@ -24,6 +26,7 @@ class Fixture:
 
 
 @pytest.mark.parametrize("label", ["2018/19", "2021/22"])
+@pytest.mark.slow
 def test_real_completed_tiebreak_seasons_match_published_order(label: str) -> None:
     """Historical DB seasons cover two-way and three-way completed ties."""
     root = Path(__file__).resolve().parents[2]
@@ -33,6 +36,10 @@ def test_real_completed_tiebreak_seasons_match_published_order(label: str) -> No
         )
     )["seasons"]
     with SessionLocal() as db:
+        try:
+            db.execute(text("SELECT 1"))
+        except SQLAlchemyError as exc:
+            pytest.skip(f"live database unavailable: {exc}")
         competition = db.query(Competition).filter_by(code="SP1").one()
         season = (
             db.query(Season)

@@ -25,7 +25,7 @@ def _upsert_freshness(
     success: bool,
     error: Optional[str] = None,
     rows: int = 0,
-):
+) -> None:
     """Update or insert a data_freshness row."""
     row = db.query(DataFreshness).filter(DataFreshness.source == source).first()
     now = datetime.now(timezone.utc)

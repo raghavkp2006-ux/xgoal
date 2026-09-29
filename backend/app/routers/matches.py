@@ -1,4 +1,5 @@
 """Matches, match events, and player stats API endpoints."""
+from sqlalchemy.sql.elements import ColumnElement
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -23,7 +24,7 @@ def list_matches(
     status: str | None = Query(None, max_length=10),
     limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
-):
+) -> list[Match]:
     q = db.query(Match)
     if season_id:
         q = q.filter(Match.season_id == season_id)
@@ -35,7 +36,7 @@ def list_matches(
 
 
 @router.get("/{match_id}", response_model=MatchResponse)
-def get_match(match_id: int, db: Session = Depends(get_db)):
+def get_match(match_id: int, db: Session = Depends(get_db)) -> Match:
     match = db.query(Match).filter(Match.id == match_id).first()
     if not match:
         raise HTTPException(404, detail="Match not found")
@@ -43,7 +44,7 @@ def get_match(match_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=MatchResponse, status_code=201)
-def create_match(body: MatchCreate, db: Session = Depends(get_db)):
+def create_match(body: MatchCreate, db: Session = Depends(get_db)) -> Match:
     match = Match(**body.model_dump())
     db.add(match)
     db.commit()
@@ -58,21 +59,20 @@ def list_players(
     season_id: int | None = None,
     team_id: int | None = None,
     db: Session = Depends(get_db),
-):
+) -> list[Player]:
     q = db.query(Player)
     if season_id or team_id:
-        q = q.filter(Player.id.in_(
-            db.query(PlayerSeasonStat.player_id)
-            .filter(
-                PlayerSeasonStat.season_id == season_id if season_id else True,
-                PlayerSeasonStat.team_id == team_id if team_id else True,
-            )
-        ))
+        filters: list[ColumnElement[bool]] = []
+        if season_id is not None:
+            filters.append(PlayerSeasonStat.season_id == season_id)
+        if team_id is not None:
+            filters.append(PlayerSeasonStat.team_id == team_id)
+        q = q.filter(Player.id.in_(db.query(PlayerSeasonStat.player_id).filter(*filters)))
     return q.order_by(Player.name).all()
 
 
 @router.get("/players/{player_id}", response_model=PlayerResponse)
-def get_player(player_id: int, db: Session = Depends(get_db)):
+def get_player(player_id: int, db: Session = Depends(get_db)) -> Player:
     player = db.query(Player).filter(Player.id == player_id).first()
     if not player:
         raise HTTPException(404, detail="Player not found")
@@ -80,7 +80,7 @@ def get_player(player_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/players", response_model=PlayerResponse, status_code=201)
-def create_player(body: PlayerCreate, db: Session = Depends(get_db)):
+def create_player(body: PlayerCreate, db: Session = Depends(get_db)) -> Player:
     existing = db.query(Player).filter(Player.name == body.name).first()
     if existing:
         raise HTTPException(409, detail="Player already exists")

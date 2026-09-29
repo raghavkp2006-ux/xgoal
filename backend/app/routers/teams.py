@@ -1,5 +1,7 @@
 """Teams API endpoints."""
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
@@ -10,7 +12,9 @@ router = APIRouter(prefix="/api/v1/teams", tags=["teams"])
 
 
 @router.get("")
-def list_teams(season: int | None = None, db: Session = Depends(get_db)):
+def list_teams(
+    season: int | None = None, db: Session = Depends(get_db)
+) -> list[dict[str, Any]]:
     """List all teams, optionally filtered by season."""
     query = db.query(Team).order_by(Team.canonical_name)
     teams = query.all()
@@ -26,7 +30,9 @@ def list_teams(season: int | None = None, db: Session = Depends(get_db)):
 
 
 @router.get("/{team_id}")
-def get_team(team_id: int, db: Session = Depends(get_db)):
+def get_team(
+    team_id: int, db: Session = Depends(get_db)
+) -> dict[str, Any] | tuple[dict[str, str], int]:
     """Get a single team by ID."""
     team = db.query(Team).filter(Team.id == team_id).first()
     if not team:

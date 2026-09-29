@@ -1,7 +1,7 @@
 """API-Football v3 client with automatic request logging and rate limiting."""
 import time
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional, cast
 
 import httpx
 from sqlalchemy.orm import Session
@@ -25,9 +25,9 @@ class ApiFootballClient:
     def _request(
         self,
         endpoint: str,
-        params: Optional[dict] = None,
+        params: Optional[dict[str, Any]] = None,
         db: Optional[Session] = None,
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Make a request, log to DB, and return the JSON response."""
         close_db = False
         if db is None:
@@ -42,7 +42,7 @@ class ApiFootballClient:
                 headers={"x-apisports-key": self.KEY},
             )
             elapsed_ms = int((time.monotonic() - t0) * 1000)
-            data = resp.json()
+            data = cast(dict[str, Any], resp.json())
 
             # Parse quota from headers
             quota_remaining = resp.headers.get("x-ratelimit-requests-remaining")
@@ -86,25 +86,25 @@ class ApiFootballClient:
 
     # ── convenience helpers ───────────────────────────────────────────
 
-    def get_status(self) -> dict:
+    def get_status(self) -> dict[str, Any]:
         return self._request("/status")
 
-    def get_leagues(self, league_id: int) -> dict:
+    def get_leagues(self, league_id: int) -> dict[str, Any]:
         return self._request("/leagues", {"id": league_id})
 
-    def get_teams(self, league_id: int, season: int) -> dict:
+    def get_teams(self, league_id: int, season: int) -> dict[str, Any]:
         return self._request("/teams", {"league": league_id, "season": season})
 
-    def get_standings(self, league_id: int, season: int) -> dict:
+    def get_standings(self, league_id: int, season: int) -> dict[str, Any]:
         return self._request("/standings", {"league": league_id, "season": season})
 
-    def get_fixtures(self, league_id: int, season: int) -> dict:
+    def get_fixtures(self, league_id: int, season: int) -> dict[str, Any]:
         return self._request("/fixtures", {"league": league_id, "season": season})
 
-    def get_fixture_events(self, fixture_id: int) -> dict:
+    def get_fixture_events(self, fixture_id: int) -> dict[str, Any]:
         return self._request("/fixtures/events", {"fixture": fixture_id})
 
-    def get_players(self, league_id: int, season: int) -> dict:
+    def get_players(self, league_id: int, season: int) -> dict[str, Any]:
         return self._request("/players", {"league": league_id, "season": season})
 
     def close(self) -> None:

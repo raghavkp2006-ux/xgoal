@@ -12,12 +12,12 @@ router = APIRouter(prefix="/api/v1/competitions", tags=["competitions"])
 # ── Competitions ──────────────────────────────────────────────────────────
 
 @router.get("", response_model=list[CompetitionResponse])
-def list_competitions(db: Session = Depends(get_db)):
+def list_competitions(db: Session = Depends(get_db)) -> list[Competition]:
     return db.query(Competition).order_by(Competition.tier, Competition.name).all()
 
 
 @router.get("/{competition_id}", response_model=CompetitionResponse)
-def get_competition(competition_id: int, db: Session = Depends(get_db)):
+def get_competition(competition_id: int, db: Session = Depends(get_db)) -> Competition:
     comp = db.query(Competition).filter(Competition.id == competition_id).first()
     if not comp:
         raise HTTPException(404, detail="Competition not found")
@@ -25,7 +25,7 @@ def get_competition(competition_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=CompetitionResponse, status_code=201)
-def create_competition(body: CompetitionCreate, db: Session = Depends(get_db)):
+def create_competition(body: CompetitionCreate, db: Session = Depends(get_db)) -> Competition:
     existing = db.query(Competition).filter(
         (Competition.code == body.code) | (Competition.api_football_id == body.api_football_id)
     ).first()
@@ -41,7 +41,7 @@ def create_competition(body: CompetitionCreate, db: Session = Depends(get_db)):
 # ── Seasons ───────────────────────────────────────────────────────────────
 
 @router.get("/{competition_id}/seasons", response_model=list[SeasonResponse])
-def list_seasons(competition_id: int, db: Session = Depends(get_db)):
+def list_seasons(competition_id: int, db: Session = Depends(get_db)) -> list[Season]:
     return (
         db.query(Season)
         .filter(Season.competition_id == competition_id)
@@ -51,7 +51,7 @@ def list_seasons(competition_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/{competition_id}/seasons", response_model=SeasonResponse, status_code=201)
-def create_season(competition_id: int, body: SeasonCreate, db: Session = Depends(get_db)):
+def create_season(competition_id: int, body: SeasonCreate, db: Session = Depends(get_db)) -> Season:
     comp = db.query(Competition).filter(Competition.id == competition_id).first()
     if not comp:
         raise HTTPException(404, detail="Competition not found")

@@ -3,7 +3,7 @@
 import enum
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy import (
     Boolean,
@@ -308,8 +308,8 @@ class ModelVersion(Base):
     train_start: Mapped[date] = mapped_column(Date, nullable=False)
     train_end: Mapped[date] = mapped_column(Date, nullable=False)
     n_train_matches: Mapped[int] = mapped_column(Integer, nullable=False)
-    hyperparameters: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    eval_metrics: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    hyperparameters: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    eval_metrics: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     artifact_path: Mapped[str] = mapped_column(Text, nullable=False)
     is_production: Mapped[bool] = mapped_column(Boolean, default=False)
 
@@ -337,7 +337,7 @@ class Prediction(Base):
     p_away: Mapped[Decimal] = mapped_column(Numeric(6, 5), nullable=False)
     expected_home_goals: Mapped[Optional[Decimal]] = mapped_column(Numeric(4, 2))
     expected_away_goals: Mapped[Optional[Decimal]] = mapped_column(Numeric(4, 2))
-    score_matrix: Mapped[Optional[dict]] = mapped_column(JSONB)
+    score_matrix: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB)
     feature_hash: Mapped[str] = mapped_column(Text, nullable=False)
 
     match: Mapped["Match"] = relationship()
@@ -369,8 +369,8 @@ class SimulationRun(Base):
     n_simulations: Mapped[int] = mapped_column(Integer, nullable=False)
     random_seed: Mapped[int] = mapped_column(Integer, nullable=False)
     as_of_matchday: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    forced_results: Mapped[Optional[dict]] = mapped_column(JSONB)
-    results: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    forced_results: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB)
+    results: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
 
     season: Mapped["Season"] = relationship()
     model_version: Mapped["ModelVersion"] = relationship()
@@ -388,7 +388,7 @@ class ApiRequestLog(Base):
         DateTime(timezone=True), nullable=False
     )
     endpoint: Mapped[str] = mapped_column(Text, nullable=False)
-    params: Mapped[Optional[dict]] = mapped_column(JSONB)
+    params: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB)
     status_code: Mapped[Optional[int]] = mapped_column(SmallInteger)
     quota_remaining: Mapped[Optional[int]] = mapped_column(Integer)
     duration_ms: Mapped[Optional[int]] = mapped_column(Integer)

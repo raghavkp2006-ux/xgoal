@@ -215,7 +215,7 @@ def simulate_season(
     *,
     season_id: int,
     team_ids: Sequence[Hashable],
-    team_names: Mapping[Hashable, str],
+    team_names: Mapping[Any, str],
     fixtures: list[Fixture],
     parameter_ensemble: FloatMatrix,
     n_simulations: int,

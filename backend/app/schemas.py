@@ -270,7 +270,7 @@ class ApiRequestLogResponse(BaseModel):
     id: int
     requested_at: datetime
     endpoint: str
-    params: Optional[dict] = None
+    params: Optional[dict[str, Any]] = None
     status_code: Optional[int] = None
     quota_remaining: Optional[int] = None
     duration_ms: Optional[int] = None

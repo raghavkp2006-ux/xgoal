@@ -13,12 +13,13 @@ router = APIRouter(prefix="/api/v1/model-versions", tags=["model-versions"])
 
 
 @router.get("", response_model=list[ModelVersionResponse])
-def list_model_versions(db: Session = Depends(get_db)):
-    counts = dict(
-        db.query(Prediction.model_version_id, func.count(Prediction.id))
-        .group_by(Prediction.model_version_id)
-        .all()
-    )
+def list_model_versions(db: Session = Depends(get_db)) -> list[ModelVersionResponse]:
+    counts: dict[int, int] = {
+        model_version_id: count
+        for model_version_id, count in db.query(
+            Prediction.model_version_id, func.count(Prediction.id)
+        ).group_by(Prediction.model_version_id).all()
+    }
     versions = db.query(ModelVersion).order_by(ModelVersion.trained_at.desc()).all()
     return [
         ModelVersionResponse(

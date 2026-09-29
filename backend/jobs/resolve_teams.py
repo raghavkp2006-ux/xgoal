@@ -29,7 +29,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from sqlalchemy import text
 
-from app.database import engine
+from app.database import get_engine
 
 DIVISIONS = ["SP1", "SP2"]
 ALIAS_FILE = os.path.join(
@@ -95,7 +95,7 @@ def extract_team_names(rows: list[dict]) -> set[str]:
 
 def get_canonical_teams() -> dict[str, int]:
     """Return {canonical_name: id} from DB."""
-    with engine.connect() as conn:
+    with get_engine().connect() as conn:
         rows = conn.execute(
             text("SELECT id, canonical_name FROM teams ORDER BY canonical_name")
         )

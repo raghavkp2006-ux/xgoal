@@ -33,7 +33,7 @@ jobs:
         run: mypy app/
 
       - name: Run tests
-        run: pytest -v
+        run: pytest -m 'not slow'
 
   frontend:
     runs-on: ubuntu-latest

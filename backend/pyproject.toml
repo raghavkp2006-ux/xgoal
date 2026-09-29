@@ -49,6 +49,22 @@ python_version = "3.12"
 strict = true
 ignore_missing_imports = true
 
+# Maintenance jobs, operational scripts, and tests are intentionally outside
+# the production FastAPI type-checking surface. The explicit script modules
+# cover this repository's script directory, which is a namespace-less folder.
+[[tool.mypy.overrides]]
+module = [
+    "jobs.*",
+    "scripts.*",
+    "tests.*",
+    "check_fixes",
+    "verify_api",
+    "repair_ht_gt_ft",
+    "db_fingerprint",
+    "seed_la_liga",
+]
+ignore_errors = true
+
 [tool.setuptools.packages.find]
 include = ["app*"]
 
