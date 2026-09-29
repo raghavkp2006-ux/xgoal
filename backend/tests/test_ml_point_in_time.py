@@ -291,9 +291,10 @@ def test_tampering_with_future_results_cannot_change_a_forecast(db, stream, samp
 # --------------------------------------------------------------------------- #
 
 
-@pytest.mark.slow
-def test_the_leakage_harness_detects_a_leaky_feature(db, stream, sample):
+def test_the_leakage_harness_detects_a_leaky_feature():
     """A leaky feature moves; the real builder does not. Proves the test has teeth."""
+    stream = synthetic_stream()
+    sample = random.Random(SAMPLE_SEED).sample(stream, SAMPLE_SIZE)
     match = sample[0]
     as_of = match.kickoff_utc
     unseen = before(stream, as_of)
@@ -305,8 +306,13 @@ def test_the_leakage_harness_detects_a_leaky_feature(db, stream, sample):
         "the comparison could never fail"
     )
 
-    clean_full = build_features(match.match_id, as_of, db=db, history=stream)
-    clean_filtered = build_features(match.match_id, as_of, db=db, history=unseen)
+    identity = synthetic_identity(match)
+    clean_full = build_features(
+        match.match_id, as_of, identity=identity, history=stream
+    )
+    clean_filtered = build_features(
+        match.match_id, as_of, identity=identity, history=unseen
+    )
     assert canonical(clean_full) == canonical(clean_filtered)
     print(
         f"\nleakage (harness sensitivity): leaky feature moved by "
