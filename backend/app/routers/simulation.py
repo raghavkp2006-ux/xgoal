@@ -6,7 +6,6 @@ POST /api/v1/simulation/whatif       → 2,000-sim what-if with forced results
 
 from __future__ import annotations
 
-import hashlib
 from datetime import datetime, time, timezone
 from time import perf_counter
 from typing import Annotated, Any, cast
@@ -19,6 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
+from app.caching import SIMULATION_CACHE, cache_response
 from app.config import settings
 from app.database import get_db
 from app.models import Match, MatchStatus, Season, SimulationRun
@@ -131,18 +131,7 @@ def get_simulation(
         "run_at": run.run_at.isoformat() if run.run_at else None,
         **results,
     }
-    response = JSONResponse(content=payload)
-    etag = f'"{hashlib.sha256(response.body).hexdigest()}"'
-    headers = {
-        "ETag": etag,
-        "Cache-Control": "public, max-age=300, stale-while-revalidate=3600",
-    }
-    if if_none_match:
-        candidates = (candidate.strip() for candidate in if_none_match.split(","))
-        if any(candidate in {"*", etag, f"W/{etag}"} for candidate in candidates):
-            return Response(status_code=304, headers=headers)
-    response.headers.update(headers)
-    return response
+    return cache_response(JSONResponse(content=payload), if_none_match, SIMULATION_CACHE)
 
 
 # ---------------------------------------------------------------------------

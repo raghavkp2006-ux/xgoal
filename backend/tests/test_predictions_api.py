@@ -24,9 +24,9 @@ def test_get_prediction_returns_latest_stored_prediction():
     db.query.side_effect = [match_query, prediction_query]
     match_query.filter.return_value.first.return_value = SimpleNamespace(id=42)
     ordered_predictions = (
-        prediction_query.join.return_value.filter.return_value.order_by.return_value
+        prediction_query.join.return_value.filter.return_value.options.return_value.order_by.return_value
     )
-    ordered_predictions.first.return_value = (
+    ordered_predictions.all.return_value = [
         SimpleNamespace(
             match_id=42,
             model_version=SimpleNamespace(name="dixon_coles", version="v2"),
@@ -38,7 +38,7 @@ def test_get_prediction_returns_latest_stored_prediction():
             expected_away_goals=0.9,
             score_matrix={"max_goals": 1, "cells": [[0.2, 0.3], [0.3, 0.2]]},
         )
-    )
+    ]
 
     try:
         response = _client_with_db(db).get("/api/v1/predictions/42")
@@ -68,8 +68,8 @@ def test_get_prediction_returns_404_when_match_has_no_prediction():
     db.query.side_effect = [match_query, prediction_query]
     match_query.filter.return_value.first.return_value = SimpleNamespace(id=42)
     (
-        prediction_query.join.return_value.filter.return_value.order_by.return_value.first.return_value
-    ) = None
+        prediction_query.join.return_value.filter.return_value.options.return_value.order_by.return_value.all.return_value
+    ) = []
 
     try:
         response = _client_with_db(db).get("/api/v1/predictions/42")
@@ -115,6 +115,8 @@ def test_hypothetical_prediction_uses_production_model(monkeypatch):
     assert response.json()["is_hypothetical"] is True
     assert response.json()["match_id"] is None
     assert response.json()["model_version"] == "v3"
+    assert "etag" not in response.headers
+    assert "cache-control" not in response.headers
     model.predict.assert_called_once_with("Home FC", "Away FC")
 
 

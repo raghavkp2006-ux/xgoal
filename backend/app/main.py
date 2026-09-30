@@ -15,6 +15,7 @@ from sqlalchemy import text
 from starlette.requests import Request
 from starlette.responses import Response
 
+from app.caching import ReadCacheMiddleware
 from app.config import settings
 from app.database import SessionLocal, get_engine
 from app.models import DataFreshness
@@ -72,6 +73,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
 app.add_middleware(SlowAPIMiddleware)
+app.add_middleware(ReadCacheMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

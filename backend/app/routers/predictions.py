@@ -3,6 +3,8 @@
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.config import settings
@@ -19,10 +21,10 @@ from jobs.predict_matchday import load_version_model
 router = APIRouter(prefix="/api/v1/predictions", tags=["predictions"])
 
 
-@router.get("", response_model=list[PredictionLogResponse])
+@router.get("", response_model=list[PredictionLogResponse] | list[PredictionResponse])
 def list_predictions(
-    model_version_id: int = Query(
-        ...,
+    model_version_id: int | None = Query(
+        None,
         description=(
             "Predictions from different fitted models are never comparable in "
             "aggregate, so the caller must pick one model_version_id explicitly "
@@ -32,9 +34,35 @@ def list_predictions(
     season_id: int | None = None,
     resolved_only: bool = True,
     limit: int = Query(500, ge=1, le=2000),
+    match_ids: str | None = Query(
+        None, description="Latest predictions for up to 100 comma-separated match IDs."
+    ),
     db: Session = Depends(get_db),
-) -> list[PredictionLogResponse]:
-    """List logged predictions for one model version, joined with match results."""
+) -> list[PredictionLogResponse] | list[PredictionResponse]:
+    """Read latest fixture predictions, or one model's scoreboard log."""
+    if match_ids is not None:
+        parts = match_ids.split(",")
+        if not 1 <= len(parts) <= 100 or any(
+            not part.strip().isascii()
+            or not part.strip().isdecimal()
+            or len(part.strip()) > 10
+            or not 1 <= int(part.strip()) <= 2_147_483_647
+            for part in parts
+        ):
+            raise HTTPException(422, detail="match_ids must contain 1 to 100 positive integer IDs")
+        ids = [int(part) for part in parts]
+        return [_stored_response(row) for row in latest_stored_predictions(db, ids)]
+    if model_version_id is None:
+        raise RequestValidationError(
+            [
+                {
+                    "type": "missing",
+                    "loc": ("query", "model_version_id"),
+                    "msg": "Field required",
+                    "input": None,
+                }
+            ]
+        )
     q = (
         db.query(Prediction)
         .join(Match, Prediction.match_id == Match.id)
@@ -45,11 +73,7 @@ def list_predictions(
         q = q.filter(Match.season_id == season_id)
     if resolved_only:
         q = q.filter(Match.status == MatchStatus.FT)
-    rows = (
-        q.order_by(Match.kickoff_utc.asc(), Prediction.as_of.asc())
-        .limit(limit)
-        .all()
-    )
+    rows = q.order_by(Match.kickoff_utc.asc(), Prediction.as_of.asc()).limit(limit).all()
     return [_log_response(prediction) for prediction in rows]
 
 
@@ -60,17 +84,41 @@ def get_prediction(match_id: int, db: Session = Depends(get_db)) -> PredictionRe
     if not match:
         raise HTTPException(404, detail="Match not found")
 
-    prediction = (
-        db.query(Prediction)
-        .join(ModelVersion)
-        .filter(Prediction.match_id == match_id)
-        .order_by(Prediction.as_of.desc(), Prediction.predicted_at.desc())
-        .first()
-    )
-    if not prediction:
+    predictions = latest_stored_predictions(db, [match_id])
+    if not predictions:
         raise HTTPException(404, detail=f"No prediction found for match {match_id}")
 
-    return _stored_response(prediction)
+    return _stored_response(predictions[0])
+
+
+def latest_stored_predictions(db: Session, match_ids: list[int]) -> list[Prediction]:
+    """Select newest per match across all versions in one query, with stable ties."""
+    ranked = (
+        select(
+            Prediction.id,
+            func.row_number()
+            .over(
+                partition_by=Prediction.match_id,
+                order_by=(
+                    Prediction.as_of.desc(),
+                    Prediction.predicted_at.desc(),
+                    Prediction.id.desc(),
+                ),
+            )
+            .label("rank"),
+        )
+        .join(ModelVersion)
+        .where(Prediction.match_id.in_(match_ids))
+        .subquery()
+    )
+    return (
+        db.query(Prediction)
+        .join(ranked, Prediction.id == ranked.c.id)
+        .filter(ranked.c.rank == 1)
+        .options(joinedload(Prediction.model_version))
+        .order_by(Prediction.match_id)
+        .all()
+    )
 
 
 @router.post("/hypothetical", response_model=PredictionResponse)
@@ -141,15 +189,9 @@ def _log_response(prediction: Prediction) -> PredictionLogResponse:
         away_team_id=match.away_team_id,
         home_goals=match.home_goals,
         away_goals=match.away_goals,
-        closing_p_home=(
-            float(match.closing_p_home) if match.closing_p_home is not None else None
-        ),
-        closing_p_draw=(
-            float(match.closing_p_draw) if match.closing_p_draw is not None else None
-        ),
-        closing_p_away=(
-            float(match.closing_p_away) if match.closing_p_away is not None else None
-        ),
+        closing_p_home=(float(match.closing_p_home) if match.closing_p_home is not None else None),
+        closing_p_draw=(float(match.closing_p_draw) if match.closing_p_draw is not None else None),
+        closing_p_away=(float(match.closing_p_away) if match.closing_p_away is not None else None),
     )
 
 

@@ -1,4 +1,5 @@
 import { AlertCircle, CalendarClock, HelpCircle } from "lucide-react";
+import { unstable_noStore as noStore } from "next/cache";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,18 +31,20 @@ type Prediction = {
 const MATCH_LIMIT = 20;
 const FINISHED_STATUSES = new Set(["FT", "AET", "PEN"]);
 
-export const dynamic = "force-dynamic";
-
 async function request<T>(url: string): Promise<T> {
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await fetch(url, { next: { revalidate: 60 } });
   if (!response.ok) throw new Error(`Backend request failed (${response.status}).`);
   return response.json() as Promise<T>;
 }
 
-async function getPrediction(api: string, matchId: number): Promise<Prediction | null> {
-  const response = await fetch(`${api}/api/v1/predictions/${matchId}`, { cache: "no-store" });
-  if (!response.ok) return null;
-  return (await response.json()) as Prediction;
+async function getPredictions(api: string, matchIds: number[]): Promise<Prediction[]> {
+  if (!matchIds.length) return [];
+  const response = await fetch(`${api}/api/v1/predictions?match_ids=${matchIds.join(",")}`, { next: { revalidate: 60 } });
+  if (!response.ok) {
+    noStore();
+    return [];
+  }
+  return (await response.json()) as Prediction[];
 }
 
 async function getFixturesData() {
@@ -62,11 +65,10 @@ async function getFixturesData() {
     .sort((a, b) => Date.parse(a.kickoff_utc) - Date.parse(b.kickoff_utc) || a.id - b.id)
     .slice(0, MATCH_LIMIT);
 
-  const predictions = await Promise.all(matches.map((match) => getPrediction(api, match.id)));
+  const predictions = await getPredictions(api, matches.map((match) => match.id));
   const predictionByMatch = new Map<number, Prediction>();
-  matches.forEach((match, index) => {
-    const prediction = predictions[index];
-    if (prediction) predictionByMatch.set(match.id, prediction);
+  predictions.forEach((prediction) => {
+    if (prediction.match_id !== null) predictionByMatch.set(prediction.match_id, prediction);
   });
 
   return { season, matches, teams: new Map(teams.map((team) => [team.id, team])), predictionByMatch };
@@ -96,6 +98,7 @@ export default async function FixturesPage() {
       </div>
     );
   } catch (cause) {
+    noStore();
     const detail = cause instanceof Error ? cause.message : "Unable to load fixtures.";
     return (
       <div className="w-full space-y-8">

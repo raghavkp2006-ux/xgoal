@@ -1,4 +1,5 @@
 import { AlertCircle, Trophy } from "lucide-react";
+import { unstable_noStore as noStore } from "next/cache";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,10 +10,8 @@ type Season = { id: number; label: string; is_current: boolean };
 type Team = { id: number; name: string };
 type Standing = { id: number; computed_at: string; as_of_matchday: number | null; position: number; team_id: number; played: number | null; won: number | null; drawn: number | null; lost: number | null; goals_for: number | null; goals_against: number | null; points: number | null; form: string | null };
 
-export const dynamic = "force-dynamic";
-
 async function request<T>(url: string): Promise<T> {
-  const response = await fetch(url, { cache: "no-store" });
+  const response = await fetch(url, { next: { revalidate: 60 } });
   if (!response.ok) throw new Error(`Backend request failed (${response.status}).`);
   return response.json() as Promise<T>;
 }
@@ -34,6 +33,7 @@ export default async function StandingsPage() {
     const data = await getStandings();
     return <div className="w-full space-y-8"><PageHeader season={data.season.label} />{data.standings.length ? <StandingsTable data={data} /> : <EmptyState season={data.season.label} />}</div>;
   } catch (cause) {
+    noStore();
     const detail = cause instanceof Error ? cause.message : "Unable to load standings.";
     return <div className="w-full space-y-8"><PageHeader /><Card className="border-rose-400/20"><CardContent className="flex gap-3 p-5 text-sm text-rose-200"><AlertCircle className="mt-0.5 size-4 shrink-0" /><div><p className="font-medium">Standings are unavailable</p><p className="mt-1 text-rose-200/75">{detail} Check that the xgoal backend is running and try again.</p></div></CardContent></Card></div>;
   }
