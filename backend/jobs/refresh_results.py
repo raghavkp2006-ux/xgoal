@@ -7,6 +7,7 @@ after every successful run.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import hashlib
 import io
@@ -59,6 +60,10 @@ CLOSING_ODDS_COLUMNS = (
 
 class UnknownTeamError(ValueError):
     """Raised when a football-data.co.uk name has no approved alias."""
+
+
+class ScoreChangeError(RuntimeError):
+    """Raised when a refresh would rewrite a completed match score."""
 
 
 @dataclass(frozen=True)
@@ -288,11 +293,12 @@ def apply_result_rows(
     alias_ids: Mapping[str, int],
     *,
     updated_at: datetime,
+    allow_score_changes: bool = False,
 ) -> int:
     """Match played rows to existing fixtures and mutate only changed rows."""
     by_pair = {(match.home_team_id, match.away_team_id): match for match in matches}
     seen_pairs: set[tuple[int, int]] = set()
-    changed = 0
+    resolved: list[tuple[Match, ResultRow]] = []
     for row in result_rows:
         try:
             home_id = alias_ids[row.home_name]
@@ -318,7 +324,46 @@ def apply_result_rows(
                 f"No existing season {SEASON_ID} fixture for "
                 f"{row.home_name} vs {row.away_name}"
             )
-        values = _result_values(row, include_score=match.status == MatchStatus.NS)
+        resolved.append((match, row))
+
+    score_changes: list[
+        tuple[
+            int,
+            tuple[int | None, int | None, int | None, int | None],
+            tuple[int | None, int | None, int | None, int | None],
+        ]
+    ] = []
+    for match, row in resolved:
+        if match.status != MatchStatus.FT:
+            continue
+        old_score = (
+            match.home_goals,
+            match.away_goals,
+            match.home_goals_ht,
+            match.away_goals_ht,
+        )
+        new_score = (
+            row.home_goals,
+            row.away_goals,
+            row.home_goals_ht,
+            row.away_goals_ht,
+        )
+        if old_score != new_score:
+            score_changes.append((match.id, old_score, new_score))
+
+    print(f"existing FT score changes: {len(score_changes)}")
+    for match_id, old_score, new_score in score_changes:
+        print(f"match id={match_id} old={old_score} new={new_score}")
+    if score_changes and not allow_score_changes:
+        raise ScoreChangeError(
+            "Refusing to rewrite existing FT scores; rerun with "
+            "--allow-score-changes to permit them"
+        )
+
+    changed = 0
+    for match, row in resolved:
+        include_score = match.status == MatchStatus.NS or allow_score_changes
+        values = _result_values(row, include_score=include_score)
         if all(getattr(match, field) == value for field, value in values.items()):
             continue
         for field, value in values.items():
@@ -457,7 +502,12 @@ def _record_freshness(
         freshness.last_error = error
 
 
-def refresh_results(db: Session, raw_rows: Iterable[Mapping[str, str | None]]) -> RefreshReport:
+def refresh_results(
+    db: Session,
+    raw_rows: Iterable[Mapping[str, str | None]],
+    *,
+    allow_score_changes: bool = False,
+) -> RefreshReport:
     """Apply one downloaded CSV and commit results, standings, and freshness."""
     attempted_at = datetime.now(timezone.utc)
     season = db.get(Season, SEASON_ID)
@@ -478,6 +528,7 @@ def refresh_results(db: Session, raw_rows: Iterable[Mapping[str, str | None]]) -
         played_rows,
         load_alias_ids(db),
         updated_at=attempted_at,
+        allow_score_changes=allow_score_changes,
     )
     snapshot_rows = rebuild_standings_snapshot(db, matches, computed_at=attempted_at)
     _record_freshness(
@@ -505,11 +556,18 @@ def refresh_results(db: Session, raw_rows: Iterable[Mapping[str, str | None]]) -
     )
 
 
-def main() -> int:
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--allow-score-changes",
+        action="store_true",
+        help="allow football-data.co.uk to rewrite scores already stored as FT",
+    )
+    args = parser.parse_args(argv)
     db = SessionLocal()
     try:
         rows = download_rows()
-        refresh_results(db, rows)
+        refresh_results(db, rows, allow_score_changes=args.allow_score_changes)
     except Exception as exc:
         db.rollback()
         attempted_at = datetime.now(timezone.utc)

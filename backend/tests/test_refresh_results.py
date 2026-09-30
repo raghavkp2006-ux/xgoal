@@ -7,6 +7,7 @@ import pytest
 
 from app.models import Match, MatchStatus
 from jobs.refresh_results import (
+    ScoreChangeError,
     UnknownTeamError,
     apply_result_rows,
     parse_played_rows,
@@ -126,10 +127,10 @@ def test_ns_becomes_ft_without_overwriting_an_existing_ft_score() -> None:
     existing_row = _row() | {
         "HomeTeam": "Existing Home",
         "AwayTeam": "Existing Away",
-        "FTHG": "0",
-        "FTAG": "0",
-        "HTHG": "0",
-        "HTAG": "0",
+        "FTHG": "4",
+        "FTAG": "3",
+        "HTHG": "2",
+        "HTAG": "1",
     }
 
     changed = apply_result_rows(
@@ -149,6 +150,59 @@ def test_ns_becomes_ft_without_overwriting_an_existing_ft_score() -> None:
     assert (new_result.home_goals, new_result.away_goals) == (2, 1)
     assert (existing_result.home_goals, existing_result.away_goals) == (4, 3)
     assert (existing_result.home_goals_ht, existing_result.away_goals_ht) == (2, 1)
+
+
+def test_existing_ft_score_change_is_blocked_before_mutation(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    match = _match()
+    match.status = MatchStatus.FT
+    match.home_goals = 4
+    match.away_goals = 3
+    match.home_goals_ht = 2
+    match.away_goals_ht = 1
+
+    with pytest.raises(ScoreChangeError, match="--allow-score-changes"):
+        apply_result_rows(
+            [match],
+            parse_played_rows([_row()]),
+            {"Home Raw": 10, "Away Raw": 20},
+            updated_at=datetime(2026, 9, 29, 10, 0, tzinfo=timezone.utc),
+        )
+
+    assert (match.home_goals, match.away_goals) == (4, 3)
+    assert (match.home_goals_ht, match.away_goals_ht) == (2, 1)
+    assert capsys.readouterr().out == (
+        "existing FT score changes: 1\n"
+        "match id=101 old=(4, 3, 2, 1) new=(2, 1, 1, 0)\n"
+    )
+
+
+def test_existing_ft_score_change_can_be_explicitly_allowed(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    match = _match()
+    match.status = MatchStatus.FT
+    match.home_goals = 4
+    match.away_goals = 3
+    match.home_goals_ht = 2
+    match.away_goals_ht = 1
+
+    changed = apply_result_rows(
+        [match],
+        parse_played_rows([_row()]),
+        {"Home Raw": 10, "Away Raw": 20},
+        updated_at=datetime(2026, 9, 29, 10, 0, tzinfo=timezone.utc),
+        allow_score_changes=True,
+    )
+
+    assert changed == 1
+    assert (match.home_goals, match.away_goals) == (2, 1)
+    assert (match.home_goals_ht, match.away_goals_ht) == (1, 0)
+    assert capsys.readouterr().out == (
+        "existing FT score changes: 1\n"
+        "match id=101 old=(4, 3, 2, 1) new=(2, 1, 1, 0)\n"
+    )
 
 
 def test_unmapped_result_team_fails_loudly() -> None:
