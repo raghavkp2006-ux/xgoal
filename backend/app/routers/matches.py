@@ -6,9 +6,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from app.database import get_db
 from app.models import Match, Player, PlayerSeasonStat
 from app.schemas import (
-    MatchCreate,
     MatchResponse,
-    PlayerCreate,
     PlayerResponse,
 )
 
@@ -43,15 +41,6 @@ def get_match(match_id: int, db: Session = Depends(get_db)) -> Match:
     return match
 
 
-@router.post("", response_model=MatchResponse, status_code=201)
-def create_match(body: MatchCreate, db: Session = Depends(get_db)) -> Match:
-    match = Match(**body.model_dump())
-    db.add(match)
-    db.commit()
-    db.refresh(match)
-    return match
-
-
 # ── Players ───────────────────────────────────────────────────────────────
 
 @router.get("/players/list", response_model=list[PlayerResponse])
@@ -76,16 +65,4 @@ def get_player(player_id: int, db: Session = Depends(get_db)) -> Player:
     player = db.query(Player).filter(Player.id == player_id).first()
     if not player:
         raise HTTPException(404, detail="Player not found")
-    return player
-
-
-@router.post("/players", response_model=PlayerResponse, status_code=201)
-def create_player(body: PlayerCreate, db: Session = Depends(get_db)) -> Player:
-    existing = db.query(Player).filter(Player.name == body.name).first()
-    if existing:
-        raise HTTPException(409, detail="Player already exists")
-    player = Player(**body.model_dump())
-    db.add(player)
-    db.commit()
-    db.refresh(player)
     return player

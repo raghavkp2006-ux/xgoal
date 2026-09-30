@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Match, MatchStatus, Season, SimulationRun
+from app.rate_limiting import limiter
 
 
 class WhatIfValidationError(ValueError):
@@ -213,7 +214,10 @@ def paired_team_deltas(
 
 
 @router.post("/whatif")
+@limiter.limit("10/minute", override_defaults=False)
 def run_whatif(
+    request: Request,
+    response: Response,
     body: WhatIfRequest,
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:

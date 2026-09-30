@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import StandingsSnapshot
-from app.schemas import StandingsSnapshotCreate, StandingsSnapshotResponse
+from app.schemas import StandingsSnapshotResponse
 
 router = APIRouter(prefix="/api/v1/standings", tags=["standings"])
 
@@ -29,14 +29,3 @@ def list_standings(
     if matchday:
         q = q.filter(StandingsSnapshot.as_of_matchday == matchday)
     return q.order_by(StandingsSnapshot.position).all()
-
-
-@router.post("", response_model=StandingsSnapshotResponse, status_code=201)
-def create_standings(
-    body: StandingsSnapshotCreate, db: Session = Depends(get_db)
-) -> StandingsSnapshot:
-    entry = StandingsSnapshot(**body.model_dump())
-    db.add(entry)
-    db.commit()
-    db.refresh(entry)
-    return entry

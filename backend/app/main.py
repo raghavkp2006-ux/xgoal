@@ -5,11 +5,12 @@ from datetime import datetime, timezone
 from typing import Any, AsyncGenerator
 
 import anyio
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy import text
 from starlette.requests import Request
 from starlette.responses import Response
@@ -17,6 +18,7 @@ from starlette.responses import Response
 from app.config import settings
 from app.database import SessionLocal, get_engine
 from app.models import DataFreshness
+from app.rate_limiting import check_rate_limit, limiter
 from app.routers import (
     competitions,
     matches,
@@ -27,13 +29,25 @@ from app.routers import (
     teams,
 )
 
-limiter = Limiter(key_func=get_remote_address)
-
 
 def rate_limit_handler(request: Request, exc: Exception) -> Response:
     if not isinstance(exc, RateLimitExceeded):
         raise exc
-    return _rate_limit_exceeded_handler(request, exc)
+    response = _rate_limit_exceeded_handler(request, exc)
+    return JSONResponse(
+        status_code=429,
+        media_type="application/problem+json",
+        headers={
+            name: value for name, value in response.headers.items()
+            if name not in {"content-type", "content-length"}
+        },
+        content={
+            "type": "about:blank",
+            "title": "Too Many Requests",
+            "status": 429,
+            "detail": f"Rate limit exceeded: {exc.detail}",
+        },
+    )
 
 
 def _warm_database_pool() -> None:
@@ -52,10 +66,12 @@ app = FastAPI(
     version="0.1.0",
     description="La Liga analytics platform with Dixon-Coles model and season simulator",
     lifespan=lifespan,
+    dependencies=[Depends(check_rate_limit)],
 )
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, rate_limit_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -105,3 +121,6 @@ def health() -> dict[str, Any]:
         "db": db_ok,
         "sources": sources,
     }
+
+
+limiter.exempt(health)  # type: ignore[no-untyped-call]  # slowapi's exempt lacks annotations.

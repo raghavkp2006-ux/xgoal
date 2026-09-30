@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Competition, Season
-from app.schemas import CompetitionCreate, CompetitionResponse, SeasonCreate, SeasonResponse
+from app.schemas import CompetitionResponse, SeasonResponse
 
 router = APIRouter(prefix="/api/v1/competitions", tags=["competitions"])
 
@@ -24,20 +24,6 @@ def get_competition(competition_id: int, db: Session = Depends(get_db)) -> Compe
     return comp
 
 
-@router.post("", response_model=CompetitionResponse, status_code=201)
-def create_competition(body: CompetitionCreate, db: Session = Depends(get_db)) -> Competition:
-    existing = db.query(Competition).filter(
-        (Competition.code == body.code) | (Competition.api_football_id == body.api_football_id)
-    ).first()
-    if existing:
-        raise HTTPException(409, detail="Competition already exists")
-    comp = Competition(**body.model_dump())
-    db.add(comp)
-    db.commit()
-    db.refresh(comp)
-    return comp
-
-
 # ── Seasons ───────────────────────────────────────────────────────────────
 
 @router.get("/{competition_id}/seasons", response_model=list[SeasonResponse])
@@ -48,17 +34,3 @@ def list_seasons(competition_id: int, db: Session = Depends(get_db)) -> list[Sea
         .order_by(Season.start_year.desc())
         .all()
     )
-
-
-@router.post("/{competition_id}/seasons", response_model=SeasonResponse, status_code=201)
-def create_season(competition_id: int, body: SeasonCreate, db: Session = Depends(get_db)) -> Season:
-    comp = db.query(Competition).filter(Competition.id == competition_id).first()
-    if not comp:
-        raise HTTPException(404, detail="Competition not found")
-    if body.competition_id != competition_id:
-        raise HTTPException(400, detail="competition_id mismatch")
-    season = Season(**body.model_dump())
-    db.add(season)
-    db.commit()
-    db.refresh(season)
-    return season
