@@ -41,4 +41,5 @@ data/raw/*.csv
 backend/data/csv_cache/
 
 # ML artifacts
-ml/artifacts/
+ml/artifacts/_taskdiff_final.txt
+.worktrees/
