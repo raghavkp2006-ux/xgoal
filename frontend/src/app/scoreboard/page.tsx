@@ -16,6 +16,7 @@ import {
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDateTime } from "@/lib/format-date";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
 
@@ -166,7 +167,7 @@ function runningSeries(scored: ScoredPrediction[]) {
     return {
       index: n,
       label: `${p.home_team_id}-${p.away_team_id}`,
-      date: new Date(p.kickoff_utc).toLocaleDateString(undefined, { day: "2-digit", month: "short" }),
+      date: formatDateTime(p.kickoff_utc),
       cumulativeLogLoss: logLossSum / n,
       cumulativeAccuracy: (correctSum / n) * 100,
       cumulativeRPS: rpsSum / n,
@@ -358,6 +359,16 @@ export default function ScoreboardPage() {
       <PageHeader />
 
       <VersionPicker versions={versions} selectedId={selectedVersionId} onChange={setSelectedVersionId} />
+      {selectedVersion?.name.toLowerCase().includes("backfill") && (
+        <p className="text-sm text-amber-300">
+          Backfilled predictions: generated retrospectively by a model fitted before these matches, not logged live before kickoff.
+        </p>
+      )}
+      {selectedVersion && !predictionsLoading && scored.length < 200 && (
+        <p className="text-sm text-amber-300">
+          Small sample (n={scored.length}): differences at this size are within noise.
+        </p>
+      )}
 
       {!selectedVersion ? (
         <EmptyState />
@@ -593,18 +604,20 @@ function RunningChart({
         <CardTitle>{title}</CardTitle>
         <p className="text-sm text-muted-foreground">{subtitle}</p>
       </CardHeader>
-      <CardContent className="h-64 pt-2">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={withBaseline} margin={{ top: 4, right: 12, left: -12, bottom: 0 }}>
+      <CardContent className="h-72 pb-4 pt-2">
+        <div className="h-[220px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={withBaseline} margin={{ top: 8, right: 16, left: 16, bottom: 8 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 29% 18%)" vertical={false} />
             <XAxis
               dataKey="index"
               tick={{ fontSize: 11, fill: "hsl(215 20% 65%)" }}
               tickLine={false}
               axisLine={false}
-              label={{ value: "match #, chronological", position: "insideBottom", offset: -2, fontSize: 11, fill: "hsl(215 20% 65%)" }}
+              height={32}
+              tickMargin={8}
             />
-            <YAxis tick={{ fontSize: 11, fill: "hsl(215 20% 65%)" }} tickLine={false} axisLine={false} width={44} />
+            <YAxis tick={{ fontSize: 11, fill: "hsl(215 20% 65%)" }} tickLine={false} axisLine={false} width={64} tickMargin={8} />
             <Tooltip
               contentStyle={{ background: "hsl(222 40% 10%)", border: "1px solid hsl(217 29% 18%)", borderRadius: 8, fontSize: 12 }}
               labelFormatter={(label, payload) => (payload?.[0] ? `${payload[0].payload.date} · match #${label}` : `match #${label}`)}
@@ -633,8 +646,10 @@ function RunningChart({
               />
             ) : null}
             <Line type="monotone" dataKey={dataKey} stroke={color} strokeWidth={2} dot={false} isAnimationActive={false} name={title} />
-          </LineChart>
-        </ResponsiveContainer>
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="mt-2 text-center text-xs text-muted-foreground">Match #, chronological</p>
       </CardContent>
     </Card>
   );
@@ -712,7 +727,7 @@ function PredictionLedger({ scored, teams }: { scored: ScoredPrediction[]; teams
                     <p className="font-medium">
                       {home} <span className="text-muted-foreground">vs</span> {away}
                     </p>
-                    <p className="text-xs text-muted-foreground">{new Date(row.kickoff_utc).toLocaleDateString()}</p>
+                    <p className="text-xs text-muted-foreground">{formatDateTime(row.kickoff_utc)}</p>
                   </td>
                   <td className="px-3 py-3 text-center font-mono text-xs text-muted-foreground">
                     {(row.p_home * 100).toFixed(0)} / {(row.p_draw * 100).toFixed(0)} / {(row.p_away * 100).toFixed(0)}

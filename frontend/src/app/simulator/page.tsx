@@ -6,6 +6,7 @@ import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxi
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDateTime } from "@/lib/format-date";
 
 type Metric = "p_champion" | "p_top4" | "p_top6" | "p_relegation";
 type TeamSimulation = {
@@ -135,7 +136,7 @@ export default function SimulatorPage() {
   const chosen = data?.teams.find((team) => team.team_id === selectedTeamId) ?? data?.teams[0];
   const availableFixtures = fixtures.filter((fixture) => !forced.some((result) => result.match_id === fixture.id));
   const fixtureLabel = (fixture: Fixture) =>
-    `${new Date(fixture.kickoff_utc).toLocaleDateString()} · ${names.get(fixture.home_team_id) ?? fixture.home_team_id} vs ${names.get(fixture.away_team_id) ?? fixture.away_team_id}`;
+    `${formatDateTime(fixture.kickoff_utc)} · ${names.get(fixture.home_team_id) ?? fixture.home_team_id} vs ${names.get(fixture.away_team_id) ?? fixture.away_team_id}`;
 
   function addForced() {
     const fixture = availableFixtures.find((item) => item.id === selectedFixtureId) ?? availableFixtures[0];
@@ -201,7 +202,7 @@ export default function SimulatorPage() {
     <div className="w-full space-y-7">
       <header className="space-y-2">
         <div className="flex items-center gap-3"><h1 className="text-3xl font-semibold">Season simulator</h1><Badge variant="muted">La Liga</Badge></div>
-        <p className="text-sm text-muted-foreground">Simulated {data.n_simulations.toLocaleString()} times, as of matchday {data.as_of_matchday}, model version {data.context?.model_version ?? data.model_version_id}. Run {data.run_at ? new Date(data.run_at).toLocaleString() : "—"}.</p>
+        <p className="text-sm text-muted-foreground">Simulated {data.n_simulations.toLocaleString()} times, as of matchday {data.as_of_matchday}, model version {data.context?.model_version ?? data.model_version_id}. Run {data.run_at ? formatDateTime(data.run_at) : "—"}.</p>
         {data.context?.fixture_calendar_note && <p className="text-xs text-muted-foreground">{data.context.fixture_calendar_note}</p>}
       </header>
 

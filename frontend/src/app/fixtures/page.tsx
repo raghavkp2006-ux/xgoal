@@ -2,6 +2,7 @@ import { AlertCircle, CalendarClock, HelpCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatDateTime } from "@/lib/format-date";
 
 type Competition = { id: number; code: string };
 type Season = { id: number; label: string; is_current: boolean };
@@ -52,10 +53,14 @@ async function getFixturesData() {
   const season = seasons.find((item) => item.is_current);
   if (!season) throw new Error("The backend has no current SP1 season.");
 
-  const [matches, teams] = await Promise.all([
-    request<Match[]>(`${api}/api/v1/matches?season_id=${season.id}&limit=${MATCH_LIMIT}`),
+  const [upcoming, teams] = await Promise.all([
+    request<Match[]>(`${api}/api/v1/matches?season_id=${season.id}&status=NS&limit=500`),
     request<Team[]>(`${api}/api/v1/teams`),
   ]);
+  const matches = upcoming
+    .filter((match) => match.status === "NS")
+    .sort((a, b) => Date.parse(a.kickoff_utc) - Date.parse(b.kickoff_utc) || a.id - b.id)
+    .slice(0, MATCH_LIMIT);
 
   const predictions = await Promise.all(matches.map((match) => getPrediction(api, match.id)));
   const predictionByMatch = new Map<number, Prediction>();
@@ -113,9 +118,9 @@ function PageHeader({ season }: { season?: string }) {
   return (
     <section className="flex flex-wrap items-end justify-between gap-4">
       <div className="space-y-2">
-        <Badge variant="muted">Recent fixtures</Badge>
-        <h1 className="text-3xl font-semibold tracking-tight">Results &amp; forecasts</h1>
-        <p className="text-sm text-muted-foreground">The most recent La Liga matches, with a Dixon-Coles forecast wherever one has been logged.</p>
+        <Badge variant="muted">Upcoming fixtures</Badge>
+        <h1 className="text-3xl font-semibold tracking-tight">Fixtures &amp; forecasts</h1>
+        <p className="text-sm text-muted-foreground">The next La Liga matches by kickoff time, with a Dixon-Coles forecast wherever one has been logged.</p>
       </div>
       {season ? <Badge variant="success">{season} current season</Badge> : null}
     </section>
@@ -130,16 +135,12 @@ function EmptyState({ season }: { season: string }) {
           <CalendarClock className="size-5" />
         </span>
         <div>
-          <p className="font-medium">No fixtures yet</p>
-          <p className="mt-1 max-w-md text-sm text-muted-foreground">The backend identifies {season} as the current SP1 season, but has not returned any matches for it.</p>
+          <p className="font-medium">No upcoming fixtures</p>
+          <p className="mt-1 max-w-md text-sm text-muted-foreground">The backend identifies {season} as the current SP1 season, but has not returned any NS matches for it.</p>
         </div>
       </CardContent>
     </Card>
   );
-}
-
-function formatKickoff(iso: string) {
-  return new Date(iso).toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 function MatchCard({ match, homeTeam, awayTeam, prediction }: { match: Match; homeTeam?: Team; awayTeam?: Team; prediction: Prediction | null }) {
@@ -152,7 +153,7 @@ function MatchCard({ match, homeTeam, awayTeam, prediction }: { match: Match; ho
       <CardHeader className="flex-row items-center justify-between gap-4 border-b border-border pb-4">
         <div>
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CalendarClock className="size-3.5" /> {formatKickoff(match.kickoff_utc)}
+            <CalendarClock className="size-3.5" /> {formatDateTime(match.kickoff_utc)}
           </p>
           <CardTitle className="mt-1 text-lg">
             {homeName} <span className="text-muted-foreground">vs</span> {awayName}
