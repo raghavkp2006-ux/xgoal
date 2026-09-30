@@ -9,18 +9,58 @@ from __future__ import annotations
 import hashlib
 from datetime import datetime, time, timezone
 from time import perf_counter
-from typing import Any
+from typing import Annotated, Any, cast
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.routing import APIRoute
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Match, Season, SimulationRun
+from app.models import Match, MatchStatus, Season, SimulationRun
 
-router = APIRouter(prefix="/api/v1/simulation", tags=["simulation"])
+
+class WhatIfValidationError(ValueError):
+    """A requested fixture cannot be forced in the current season."""
+
+
+class ProblemRoute(APIRoute):
+    """Render request validation errors as RFC 7807 for this router."""
+
+    def get_route_handler(self) -> Any:
+        handler = super().get_route_handler()
+
+        async def problem_handler(request: Request) -> Response:
+            try:
+                return await handler(request)
+            except (RequestValidationError, WhatIfValidationError) as exc:
+                if isinstance(exc, RequestValidationError):
+                    detail = "; ".join(
+                        f"{'.'.join(map(str, issue['loc']))}: {issue['msg']}"
+                        for issue in exc.errors()
+                    )
+                else:
+                    detail = str(exc)
+                return JSONResponse(
+                    status_code=422,
+                    media_type="application/problem+json",
+                    content={
+                        "type": "about:blank",
+                        "title": "Unprocessable Content",
+                        "status": 422,
+                        "detail": detail,
+                    },
+                )
+
+        return problem_handler
+
+
+router = APIRouter(
+    prefix="/api/v1/simulation", tags=["simulation"], route_class=ProblemRoute
+)
 
 # ---------------------------------------------------------------------------
 # GET — read the latest cached baseline run
@@ -109,27 +149,67 @@ def get_simulation(
 
 WHATIF_SIMS = 2_000
 WHATIF_BOOTSTRAP = 20  # much smaller than the nightly 100
+WHATIF_SEED = 42
+Goal = Annotated[int, Field(strict=True, ge=0, le=20)]
 
 
 class ForcedResult(BaseModel):
     """A single forced match result for what-if mode."""
 
-    home_team: str = Field(..., description="Home team canonical name")
-    away_team: str = Field(..., description="Away team canonical name")
-    home_goals: int = Field(..., ge=0, le=20)
-    away_goals: int = Field(..., ge=0, le=20)
+    match_id: Annotated[int, Field(strict=True, gt=0)]
+    home_goals: Goal
+    away_goals: Goal
 
 
 class WhatIfRequest(BaseModel):
     """Request body for the what-if simulation endpoint."""
 
-    forced_results: list[ForcedResult] = Field(
-        ..., min_length=1, max_length=20
-    )
-    season: str | None = Field(
-        None,
-        description="Season label. Defaults to the current season.",
-    )
+    forced_results: list[ForcedResult] = Field(..., max_length=50)
+
+
+def validate_forced_results(
+    requested: list[ForcedResult], season_id: int, matches: list[Match]
+) -> dict[int, tuple[int, int]]:
+    """Validate the entire request before any expensive simulation work."""
+    by_id = {match.id: match for match in matches}
+    forced: dict[int, tuple[int, int]] = {}
+    for result in requested:
+        if result.match_id in forced:
+            raise WhatIfValidationError(f"Duplicate match_id {result.match_id}")
+        match = by_id.get(result.match_id)
+        if match is None or match.season_id != season_id:
+            raise WhatIfValidationError(
+                f"match_id {result.match_id} is not in the current season"
+            )
+        if match.status != MatchStatus.NS:
+            raise WhatIfValidationError(f"match_id {result.match_id} is not NS")
+        forced[result.match_id] = (result.home_goals, result.away_goals)
+    return forced
+
+
+DELTA_FIELDS = (
+    "p_champion", "p_top4", "p_top6", "p_relegation", "expected_final_points"
+)
+
+
+def paired_team_deltas(
+    forced_teams: list[dict[str, Any]], unforced_teams: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Subtract runs drawn from the same parameters and random stream."""
+    unforced_by_id = {row["team_id"]: row for row in unforced_teams}
+    if len(unforced_by_id) != len(unforced_teams) or len(forced_teams) != len(unforced_teams):
+        raise ValueError("Paired simulations have different team sets")
+    deltas = []
+    for row in forced_teams:
+        original = unforced_by_id.get(row["team_id"])
+        if original is None:
+            raise ValueError(f"Unforced simulation has no team_id {row['team_id']}")
+        deltas.append({
+            "team_id": row["team_id"],
+            "team": row["team"],
+            **{field: round(row[field] - original[field], 6) for field in DELTA_FIELDS},
+        })
+    return deltas
 
 
 @router.post("/whatif")
@@ -140,7 +220,7 @@ def run_whatif(
     """Run a reduced (2,000-sim) Monte Carlo with forced match results.
 
     The result is transient — it is **not** persisted to the database.
-    A baseline comparison is included so the frontend can compute deltas.
+    A paired unforced run supplies the baseline for team deltas.
     """
     # Lazy imports — these pull in numpy/scipy which are heavy at import time
     from app.ml.dataset import (  # noqa: E402
@@ -157,17 +237,28 @@ def run_whatif(
         simulate_season as simulate_vectorized,
     )
 
-    season_row = _resolve_season(db, body.season)
-    competition = (
+    season_row = _resolve_season(db, None)
+    all_matches = (
         db.query(Match)
         .filter(Match.season_id == season_row.id)
+        .order_by(Match.kickoff_utc, Match.id)
+        .all()
+    )
+    forced_by_id = validate_forced_results(body.forced_results, season_row.id, all_matches)
+    cached_run: SimulationRun | None = (
+        db.query(SimulationRun)
+        .filter(
+            SimulationRun.season_id == season_row.id,
+            or_(
+                SimulationRun.forced_results.is_(None),
+                text("forced_results = 'null'::jsonb"),
+            ),
+        )
+        .order_by(SimulationRun.run_at.desc())
         .first()
     )
-    if competition is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No matches found for this season.",
-        )
+    if cached_run is None:
+        raise HTTPException(status_code=404, detail="No cached baseline simulation run")
 
     # Resolve competition for training data
     from app.models import Competition  # noqa: E402
@@ -184,21 +275,13 @@ def run_whatif(
     names = load_team_names(db)
 
     # Load season matches
-    played_matches = (
-        db.query(Match)
-        .filter(
-            Match.season_id == season_row.id,
-            Match.home_goals.isnot(None),
-            Match.away_goals.isnot(None),
-        )
-        .order_by(Match.kickoff_utc)
-        .all()
-    )
+    played_matches = [match for match in all_matches if match.status == MatchStatus.FT]
+    unplayed_matches = [match for match in all_matches if match.status == MatchStatus.NS]
 
     team_ids = sorted(
         {
             tid
-            for m in played_matches
+            for m in all_matches
             for tid in (m.home_team_id, m.away_team_id)
         },
         key=lambda tid: names.get(tid, str(tid)),
@@ -213,19 +296,25 @@ def run_whatif(
         Fixture(season_row.id, m.home_team_id, m.away_team_id, m.home_goals, m.away_goals)
         for m in played_matches
     ]
-    remaining_pairs = derive_missing_round_robin_fixtures(
-        team_ids, played_fixtures, season_id=season_row.id
-    )
     remaining_fixtures = [
-        Fixture(season_row.id, h, a, None, None) for h, a in remaining_pairs
+        Fixture(season_row.id, m.home_team_id, m.away_team_id, None, None)
+        for m in unplayed_matches
     ]
+    if not remaining_fixtures:
+        remaining_pairs = derive_missing_round_robin_fixtures(
+            team_ids, played_fixtures, season_id=season_row.id
+        )
+        remaining_fixtures = [
+            Fixture(season_row.id, h, a, None, None) for h, a in remaining_pairs
+        ]
     fixtures = played_fixtures + remaining_fixtures
 
     # Build forced results mapping
-    forced: dict[str, tuple[int, int]] = {}
-    for fr in body.forced_results:
-        key = f"{fr.home_team} vs {fr.away_team}"
-        forced[key] = (fr.home_goals, fr.away_goals)
+    forced = {
+        f"{names[match.home_team_id]} vs {names[match.away_team_id]}": forced_by_id[match.id]
+        for match in unplayed_matches
+        if match.id in forced_by_id
+    }
 
     # Fit model and bootstrap (small ensemble for speed)
     cut = datetime.combine(
@@ -241,7 +330,7 @@ def run_whatif(
     model = DixonColesModel().fit(history)
 
     team_name_list = [names[tid] for tid in team_ids]
-    seed = 42
+    seed = WHATIF_SEED
     ensemble = bootstrap_parameter_ensemble(
         history,
         team_name_list,
@@ -251,6 +340,15 @@ def run_whatif(
     )
 
     t0 = perf_counter()
+    unforced_results = simulate_vectorized(
+        season_id=season_row.id,
+        team_ids=team_ids,
+        team_names=names,
+        fixtures=fixtures,
+        parameter_ensemble=ensemble,
+        n_simulations=WHATIF_SIMS,
+        seed=seed,
+    )
     results = simulate_vectorized(
         season_id=season_row.id,
         team_ids=team_ids,
@@ -267,39 +365,29 @@ def run_whatif(
     results.pop("raw_simulations", None)
     results.pop("finish_position_counts", None)
 
-    # Load baseline for delta computation
-    baseline_run: SimulationRun | None = (
-        db.query(SimulationRun)
-        .filter(
-            SimulationRun.season_id == season_row.id,
-            or_(
-                SimulationRun.forced_results.is_(None),
-                text("forced_results = 'null'::jsonb"),
-            ),
-        )
-        .order_by(SimulationRun.run_at.desc())
-        .first()
+    deltas = paired_team_deltas(
+        cast(list[dict[str, Any]], results["teams"]),
+        cast(list[dict[str, Any]], unforced_results["teams"]),
     )
 
-    baseline_teams = None
-    if baseline_run and baseline_run.results:
-        baseline_results = dict(baseline_run.results)
-        baseline_teams = baseline_results.get("teams")
+    now = datetime.now(timezone.utc).isoformat()
+    context = dict(cached_run.results.get("context", {}))
+    context.update(generated_at=now, parameter_bootstrap_fits=WHATIF_BOOTSTRAP)
 
     return {
+        "id": None,
+        "season_id": season_row.id,
+        "model_version_id": cached_run.model_version_id,
         "n_simulations": WHATIF_SIMS,
         "random_seed": seed,
-        "forced_results": {
-            f"{fr.home_team} vs {fr.away_team}": [fr.home_goals, fr.away_goals]
-            for fr in body.forced_results
-        },
+        "as_of_matchday": cached_run.as_of_matchday,
+        "run_at": now,
+        "forced_results": [item.model_dump() for item in body.forced_results],
         "runtime_seconds": round(elapsed, 3),
-        "note": (
-            f"What-if result from {WHATIF_SIMS} simulations (not 10,000). "
-            "Session-only — not persisted."
-        ),
+        "note": "What-if runs use 2,000 simulations. Session only.",
         **results,
-        "baseline_teams": baseline_teams,
+        "context": context,
+        "deltas": deltas,
     }
 
 

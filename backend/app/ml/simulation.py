@@ -396,6 +396,12 @@ def simulate_season(
             "finish_positions": finish_positions.tolist(),
             "final_points": final_points.tolist(),
             "draws": draws_per_simulation.tolist(),
+            "forced_fixture_scores": {
+                str(index): np.stack(
+                    (all_home_goals[:, index], all_away_goals[:, index]), axis=1
+                ).tolist()
+                for index in forced_fixture_indices
+            },
         },
         "parameter_uncertainty": {
             "method": "nonparametric match bootstrap; one fitted parameter vector sampled per run",

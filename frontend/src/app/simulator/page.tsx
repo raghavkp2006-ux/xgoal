@@ -1,612 +1,275 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import { useEffect, useState } from "react";
+import { AlertCircle, ArrowDown, ArrowUp, Minus, RotateCcw } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from "recharts";
-import { AlertCircle, ArrowUp, ArrowDown, Minus, Play, Plus, X, Loader2 } from "lucide-react";
 
-// --- Types ---
-
-interface TeamSimulation {
+type Metric = "p_champion" | "p_top4" | "p_top6" | "p_relegation";
+type TeamSimulation = {
   team_id: number;
   team: string;
   p_champion: number;
   p_top4: number;
   p_top6: number;
   p_relegation: number;
-  finish_position_distribution: Record<string, number>;
   expected_final_points: number;
-  current_points: number;
-  current_goal_difference: number;
-  played: number;
-}
-
-interface SimulationContext {
-  competition: string;
-  season: string;
-  as_of_matchday: number;
-  derived_calendar: boolean;
-  fixture_calendar_note: string;
-  parameter_bootstrap_fits: number;
-  generated_at: string;
-}
-
-interface SimulationResponse {
-  id?: number;
+  expected_final_points_95ci: { lower: number; upper: number; level: number };
+  finish_position_distribution: Record<string, number>;
+};
+type TeamDelta = Pick<TeamSimulation, Metric | "team_id" | "expected_final_points">;
+type SimulationResponse = {
   season_id: number;
-  model_version_id: number;
   n_simulations: number;
-  random_seed: number;
   as_of_matchday: number;
-  run_at: string;
+  run_at: string | null;
+  model_version_id: number;
+  context?: { model_version?: string | null; fixture_calendar_note?: string | null };
   teams: TeamSimulation[];
-  simulated_matches: number;
-  completed_matches: number;
-  context: SimulationContext;
-  parameter_uncertainty: any;
-  baseline_teams?: TeamSimulation[];
-  note?: string;
-  forced_results?: any[];
-}
-
-interface ForcedResult {
-  home_team: string;
-  away_team: string;
-  home_goals: number;
-  away_goals: number;
-}
+  deltas?: TeamDelta[];
+};
+type Fixture = {
+  id: number;
+  home_team_id: number;
+  away_team_id: number;
+  kickoff_utc: string;
+  status: string;
+};
+type ForcedResult = { match_id: number; home_goals: number; away_goals: number };
+type LoadState = "loading" | "ready" | "empty" | "error";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+const metrics: { key: Metric; label: string }[] = [
+  { key: "p_champion", label: "Champion" },
+  { key: "p_top4", label: "Top 4" },
+  { key: "p_top6", label: "Top 6" },
+  { key: "p_relegation", label: "Relegation" },
+];
 
-// --- Components ---
-
-function GradientBar({ value, variant = "primary" }: { value: number; variant?: "primary" | "rose" }) {
-  const isRose = variant === "rose";
-  return (
-    <div className="flex items-center gap-2">
-      <span className="font-mono text-xs tabular-nums w-10 text-right">
-        {(value * 100).toFixed(1)}%
-      </span>
-      <div className="w-24 bg-muted/30 rounded-full h-2 overflow-hidden shrink-0">
-        <div
-          className={cn(
-            "h-full rounded-full",
-            isRose ? "bg-gradient-to-r from-rose-400/20 to-rose-400" : "bg-gradient-to-r from-primary/20 to-primary"
-          )}
-          style={{ width: `${Math.max(0, Math.min(100, value * 100))}%` }}
-        />
-      </div>
-    </div>
-  );
+function percent(value: number) {
+  return `${(value * 100).toFixed(1)}%`;
 }
 
-function AnimatedDelta({ value, type }: { value: number; type: "champion" | "relegation" }) {
-  const [displayValue, setDisplayValue] = useState(0);
-
-  const isNeutral = Math.abs(value) < 0.001;
-  const isGood = type === "champion" ? value > 0 : value < 0;
-
-  useEffect(() => {
-    if (isNeutral) {
-      setDisplayValue(0);
-      return;
-    }
-
-    let startTimestamp: number | null = null;
-    const duration = 400; // ms
-
-    const step = (timestamp: number) => {
-      if (!startTimestamp) startTimestamp = timestamp;
-      const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-      const easeOut = 1 - Math.pow(1 - progress, 3);
-      setDisplayValue(value * easeOut);
-
-      if (progress < 1) {
-        requestAnimationFrame(step);
-      } else {
-        setDisplayValue(value);
-      }
-    };
-
-    requestAnimationFrame(step);
-  }, [value, isNeutral]);
-
-  if (isNeutral) {
-    return (
-      <span className="font-mono text-xs text-muted-foreground flex items-center justify-end gap-1">
-        <Minus className="w-3 h-3" />
-        0.0%
-      </span>
-    );
-  }
-
-  const formattedValue = Math.abs(displayValue * 100).toFixed(1) + "%";
-
+function Delta({ value, points = false }: { value: number; points?: boolean }) {
+  const display = points ? value : value * 100;
+  const zero = Math.abs(display) < 0.05;
   return (
-    <span
-      className={cn(
-        "font-mono text-xs flex items-center justify-end gap-0.5 tabular-nums",
-        isGood ? "text-emerald-300" : "text-rose-300"
-      )}
-    >
-      {value > 0 ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
-      {formattedValue}
+    <span className={`inline-flex items-center gap-0.5 text-xs ${zero ? "text-muted-foreground" : display > 0 ? "text-emerald-300" : "text-rose-300"}`}>
+      {zero ? <Minus className="size-3" /> : display > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+      {zero ? "0.0" : Math.abs(display).toFixed(1)}{points ? " pts" : " pp"}
     </span>
-  );
-}
-
-function PageHeader() {
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center gap-3">
-        <h1 className="text-3xl font-semibold tracking-tight">Season Simulator</h1>
-        <Badge variant="muted" className="bg-primary/10 text-primary border-primary/20">
-          Monte Carlo
-        </Badge>
-      </div>
-      <p className="text-sm text-muted-foreground">
-        10,000 season simulations simulating remaining fixtures based on current team ratings and home advantage.
-      </p>
-    </div>
-  );
-}
-
-function MetadataCard({ data }: { data: SimulationResponse }) {
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader className="p-5 pb-0 gap-1.5">
-        <CardTitle className="text-base font-semibold tracking-tight">Simulation Run Metadata</CardTitle>
-      </CardHeader>
-      <CardContent className="p-5">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          <div className="space-y-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Simulations</p>
-            <p className="font-mono text-sm">{data.n_simulations?.toLocaleString()}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Matches (Played / Rem)</p>
-            <p className="font-mono text-sm">{data.completed_matches} / {data.simulated_matches}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Random Seed</p>
-            <p className="font-mono text-sm">{data.random_seed}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Generated At</p>
-            <p className="font-mono text-sm">{data.run_at ? new Date(data.run_at).toLocaleString() : ""}</p>
-          </div>
-        </div>
-        {data.context?.fixture_calendar_note && (
-          <div className="mt-4 pt-4 border-t border-border flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
-            <p className="text-xs text-muted-foreground">
-              {data.context.fixture_calendar_note}
-            </p>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function ProbabilityTable({
-  data,
-  isWhatIf,
-}: {
-  data: SimulationResponse;
-  isWhatIf: boolean;
-}) {
-  const getBaselineTeam = (teamId: number) => {
-    if (!data.baseline_teams) return null;
-    return data.baseline_teams.find((t) => t.team_id === teamId);
-  };
-
-  return (
-    <Card className="bg-card border-border overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse min-w-[800px]">
-          <thead>
-            <tr className="border-b border-border bg-muted/50">
-              <th className="px-5 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">#</th>
-              <th className="px-3 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">Team</th>
-              <th className="px-3 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">Pts (xPts)</th>
-              <th className="px-3 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">P(Champ)</th>
-              {isWhatIf && <th className="px-3 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">Δ Champ</th>}
-              <th className="px-3 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">P(Top 4)</th>
-              <th className="px-3 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">P(Top 6)</th>
-              <th className="px-5 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">P(Relegation)</th>
-              {isWhatIf && <th className="px-5 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground text-right">Δ Releg</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border/50">
-            {data.teams?.map((team, idx) => {
-              const baseline = getBaselineTeam(team.team_id);
-              const dChamp = baseline ? team.p_champion - baseline.p_champion : 0;
-              const dReleg = baseline ? team.p_relegation - baseline.p_relegation : 0;
-
-              return (
-                <tr
-                  key={team.team_id}
-                  className="transition-shadow duration-150 hover:shadow-md hover:shadow-primary/5 hover:bg-muted/10 group"
-                >
-                  <td className="px-5 py-3 font-mono text-xs text-muted-foreground">{idx + 1}</td>
-                  <td className="px-3 py-3 text-sm font-medium">{team.team}</td>
-                  <td className="px-3 py-3 text-right">
-                    <span className="font-mono text-sm">{team.current_points}</span>
-                    <span className="font-mono text-xs text-muted-foreground ml-1">({team.expected_final_points.toFixed(1)})</span>
-                  </td>
-                  <td className="px-3 py-3">
-                    <GradientBar value={team.p_champion} variant="primary" />
-                  </td>
-                  {isWhatIf && (
-                    <td className="px-3 py-3">
-                      <AnimatedDelta value={dChamp} type="champion" />
-                    </td>
-                  )}
-                  <td className="px-3 py-3 font-mono text-xs tabular-nums text-right">
-                    {(team.p_top4 * 100).toFixed(1)}%
-                  </td>
-                  <td className="px-3 py-3 font-mono text-xs tabular-nums text-right">
-                    {(team.p_top6 * 100).toFixed(1)}%
-                  </td>
-                  <td className="px-5 py-3">
-                    <GradientBar value={team.p_relegation} variant="rose" />
-                  </td>
-                  {isWhatIf && (
-                    <td className="px-5 py-3">
-                      <AnimatedDelta value={dReleg} type="relegation" />
-                    </td>
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </Card>
-  );
-}
-
-function FinishDistributionChart({ teams }: { teams: TeamSimulation[] }) {
-  const [group, setGroup] = useState<"top6" | "bottom6">("top6");
-
-  const selectedTeams = group === "top6" ? teams.slice(0, 6) : teams.slice(-6);
-  const positions = group === "top6" ? [1, 2, 3, 4, 5, 6] : [15, 16, 17, 18, 19, 20];
-
-  const colors = [
-    "hsl(174 72% 45%)",
-    "hsl(217 90% 60%)",
-    "hsl(280 70% 60%)",
-    "hsl(340 70% 60%)",
-    "hsl(30 90% 60%)",
-    "hsl(100 60% 50%)",
-  ];
-
-  const chartData = positions.map((pos) => {
-    const d: any = { position: `Pos ${pos}` };
-    selectedTeams.forEach((t) => {
-      d[t.team] = ((t.finish_position_distribution && t.finish_position_distribution[String(pos)]) || 0) * 100;
-    });
-    return d;
-  });
-
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader className="p-5 pb-0 flex flex-row items-center justify-between gap-1.5">
-        <CardTitle className="text-base font-semibold tracking-tight">Finish Position Distribution</CardTitle>
-        <div className="flex bg-muted/50 rounded-md p-1">
-          <button
-            onClick={() => setGroup("top6")}
-            className={cn(
-              "px-3 py-1 text-xs font-medium rounded-sm transition-colors",
-              group === "top6" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Top 6
-          </button>
-          <button
-            onClick={() => setGroup("bottom6")}
-            className={cn(
-              "px-3 py-1 text-xs font-medium rounded-sm transition-colors",
-              group === "bottom6" ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Bottom 6
-          </button>
-        </div>
-      </CardHeader>
-      <CardContent className="p-5 h-[350px]">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(217 29% 18%)" vertical={false} />
-            <XAxis dataKey="position" tick={{ fontSize: 11, fill: "hsl(215 20% 65%)" }} tickLine={false} axisLine={false} />
-            <YAxis
-              tick={{ fontSize: 11, fill: "hsl(215 20% 65%)" }}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(v) => `${v}%`}
-            />
-            <Tooltip
-              cursor={{ fill: "hsl(217 25% 15% / 0.4)" }}
-              contentStyle={{
-                background: "hsl(222 40% 10%)",
-                border: "1px solid hsl(217 29% 18%)",
-                borderRadius: 8,
-                fontSize: 12,
-              }}
-              formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]}
-            />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            {selectedTeams.map((t, idx) => (
-              <Bar key={t.team_id} dataKey={t.team} stackId="a" fill={colors[idx % colors.length]} />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      </CardContent>
-    </Card>
-  );
-}
-
-function WhatIfPanel({
-  teams,
-  onRun,
-  onClear,
-  isLoading,
-  isActive,
-}: {
-  teams: TeamSimulation[];
-  onRun: (results: ForcedResult[]) => void;
-  onClear: () => void;
-  isLoading: boolean;
-  isActive: boolean;
-}) {
-  const [forcedResults, setForcedResults] = useState<ForcedResult[]>([
-    { home_team: teams[0]?.team || "", away_team: teams[1]?.team || "", home_goals: 0, away_goals: 0 },
-  ]);
-
-  const teamNames = teams.map((t) => t.team).sort();
-
-  const addMatch = () => {
-    setForcedResults([
-      ...forcedResults,
-      { home_team: teamNames[0], away_team: teamNames[1], home_goals: 0, away_goals: 0 },
-    ]);
-  };
-
-  const removeMatch = (index: number) => {
-    setForcedResults(forcedResults.filter((_, i) => i !== index));
-  };
-
-  const updateMatch = (index: number, field: keyof ForcedResult, value: any) => {
-    const newResults = [...forcedResults];
-    newResults[index] = { ...newResults[index], [field]: value };
-    setForcedResults(newResults);
-  };
-
-  return (
-    <Card className="bg-card border-border">
-      <CardHeader className="p-5 pb-4 gap-1.5 border-b border-border">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-base font-semibold tracking-tight">What-If Scenarios</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">
-              Force specific match results to see how they impact the probabilities.
-            </p>
-          </div>
-          {isActive && (
-            <Badge variant="muted" className="bg-primary/10 text-primary border-primary/20">
-              Active Mode
-            </Badge>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="p-5 space-y-4">
-        {forcedResults.map((result, idx) => (
-          <div key={idx} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-muted/20 border border-border rounded-md">
-            <div className="flex-1">
-              <select
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary"
-                value={result.home_team}
-                onChange={(e) => updateMatch(idx, "home_team", e.target.value)}
-              >
-                {teamNames.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2 justify-center">
-              <input
-                type="number"
-                min="0"
-                className="w-16 bg-background border border-border rounded-md px-3 py-1.5 text-sm font-mono text-center outline-none focus:ring-1 focus:ring-primary"
-                value={result.home_goals}
-                onChange={(e) => updateMatch(idx, "home_goals", parseInt(e.target.value) || 0)}
-              />
-              <span className="text-muted-foreground font-mono">-</span>
-              <input
-                type="number"
-                min="0"
-                className="w-16 bg-background border border-border rounded-md px-3 py-1.5 text-sm font-mono text-center outline-none focus:ring-1 focus:ring-primary"
-                value={result.away_goals}
-                onChange={(e) => updateMatch(idx, "away_goals", parseInt(e.target.value) || 0)}
-              />
-            </div>
-            <div className="flex-1">
-              <select
-                className="w-full bg-background border border-border rounded-md px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-primary"
-                value={result.away_team}
-                onChange={(e) => updateMatch(idx, "away_team", e.target.value)}
-              >
-                {teamNames.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              onClick={() => removeMatch(idx)}
-              disabled={forcedResults.length === 1}
-              className="p-1.5 text-muted-foreground hover:text-rose-400 hover:bg-rose-400/10 rounded-md transition-colors disabled:opacity-50"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ))}
-
-        <div className="flex items-center justify-between pt-2">
-          <button
-            onClick={addMatch}
-            className="flex items-center gap-1.5 text-sm font-medium text-primary hover:text-primary/80 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add Match
-          </button>
-          
-          <div className="flex items-center gap-3">
-            {isActive && (
-              <button
-                onClick={onClear}
-                className="px-4 py-2 text-sm font-medium border border-border rounded-md hover:bg-muted/50 transition-colors"
-              >
-                Clear What-If
-              </button>
-            )}
-            <button
-              onClick={() => onRun(forcedResults)}
-              disabled={isLoading}
-              className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors flex items-center gap-2 disabled:opacity-70"
-            >
-              {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-              Run Scenario
-            </button>
-          </div>
-        </div>
-
-        <div className="mt-2 text-xs text-muted-foreground flex items-center gap-1.5 border-t border-border pt-4">
-          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-          Note: Uses 2,000 simulations (not 10,000). Session-only — not persisted.
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
 function SimulatorSkeleton() {
   return (
-    <div className="w-full space-y-8 animate-pulse">
-      <div className="space-y-3">
-        <div className="h-10 bg-muted rounded w-64" />
-        <div className="h-5 bg-muted rounded w-96" />
-      </div>
-      <div className="h-40 bg-muted rounded-xl" />
-      <div className="h-[600px] bg-muted rounded-xl" />
+    <div className="w-full space-y-6 animate-pulse" role="status" aria-label="Loading season simulation">
+      <div className="h-10 w-64 rounded bg-muted" />
+      <div className="h-28 rounded-xl bg-muted" />
+      <div className="h-72 rounded-xl bg-muted" />
+      <div className="h-96 rounded-xl bg-muted" />
+      <p className="text-sm text-muted-foreground">Loading the cached simulation. A cold backend can take over a minute to start.</p>
     </div>
   );
 }
 
-function ErrorState({ error }: { error: string }) {
-  return (
-    <Card className="bg-rose-400/10 border-rose-400/20">
-      <CardContent className="p-6 flex flex-col items-center justify-center text-center space-y-4">
-        <AlertCircle className="w-12 h-12 text-rose-400" />
-        <div className="space-y-1">
-          <h3 className="text-lg font-medium text-rose-300">Simulation Error</h3>
-          <p className="text-sm text-rose-300/80">{error}</p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-// --- Main Page ---
-
 export default function SimulatorPage() {
-  const [baselineData, setBaselineData] = useState<SimulationResponse | null>(null);
-  const [currentData, setCurrentData] = useState<SimulationResponse | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isWhatIfLoading, setIsWhatIfLoading] = useState(false);
+  const [state, setState] = useState<LoadState>("loading");
   const [error, setError] = useState<string | null>(null);
+  const [baseline, setBaseline] = useState<SimulationResponse | null>(null);
+  const [scenario, setScenario] = useState<SimulationResponse | null>(null);
+  const [fixtures, setFixtures] = useState<Fixture[]>([]);
+  const [forced, setForced] = useState<ForcedResult[]>([]);
+  const [selectedFixtureId, setSelectedFixtureId] = useState<number | null>(null);
+  const [homeGoals, setHomeGoals] = useState(0);
+  const [awayGoals, setAwayGoals] = useState(0);
+  const [selectedTeamId, setSelectedTeamId] = useState<number | null>(null);
+  const [running, setRunning] = useState(false);
+  const [scenarioError, setScenarioError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchBaseline() {
+    const controller = new AbortController();
+    async function load() {
       try {
-        const res = await fetch(`${API}/api/v1/simulation`);
-        if (!res.ok) throw new Error(`Failed to load simulation data (${res.status})`);
-        const data = await res.json();
-        setBaselineData(data);
-        setCurrentData(data);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
+        // No short timeout: the loading state also covers a 60s backend cold start.
+        const response = await fetch(`${API}/api/v1/simulation`, { cache: "no-store", signal: controller.signal });
+        if (response.status === 404) {
+          setState("empty");
+          return;
+        }
+        if (!response.ok) throw new Error(`Backend request failed (${response.status}).`);
+        const data = (await response.json()) as SimulationResponse;
+        if (!Array.isArray(data.teams) || data.teams.length === 0) {
+          setState("empty");
+          return;
+        }
+        setBaseline(data);
+        setSelectedTeamId(data.teams[0].team_id);
+        setState("ready");
+
+        const fixturesResponse = await fetch(
+          `${API}/api/v1/matches?season_id=${data.season_id}&status=NS&limit=500`,
+          { cache: "no-store", signal: controller.signal },
+        );
+        if (!fixturesResponse.ok) throw new Error(`Unable to load upcoming fixtures (${fixturesResponse.status}).`);
+        const upcoming = ((await fixturesResponse.json()) as Fixture[])
+          .filter((fixture) => fixture.status === "NS")
+          .sort((a, b) => a.kickoff_utc.localeCompare(b.kickoff_utc) || a.id - b.id);
+        setFixtures(upcoming);
+        setSelectedFixtureId(upcoming[0]?.id ?? null);
+      } catch (cause) {
+        if (controller.signal.aborted) return;
+        setError(cause instanceof Error ? cause.message : "Unable to reach the backend.");
+        setState("error");
       }
     }
-    fetchBaseline();
+    void load();
+    return () => controller.abort();
   }, []);
 
-  const runWhatIf = async (forcedResults: ForcedResult[]) => {
-    if (!baselineData) return;
-    setIsWhatIfLoading(true);
+  const data = scenario ?? baseline;
+  const names = new Map(baseline?.teams.map((team) => [team.team_id, team.team]) ?? []);
+  const deltas = new Map(scenario?.deltas?.map((delta) => [delta.team_id, delta]) ?? []);
+  const chosen = data?.teams.find((team) => team.team_id === selectedTeamId) ?? data?.teams[0];
+  const availableFixtures = fixtures.filter((fixture) => !forced.some((result) => result.match_id === fixture.id));
+  const fixtureLabel = (fixture: Fixture) =>
+    `${new Date(fixture.kickoff_utc).toLocaleDateString()} · ${names.get(fixture.home_team_id) ?? fixture.home_team_id} vs ${names.get(fixture.away_team_id) ?? fixture.away_team_id}`;
+
+  function addForced() {
+    const fixture = availableFixtures.find((item) => item.id === selectedFixtureId) ?? availableFixtures[0];
+    if (!fixture || forced.length >= 50) return;
+    if (![homeGoals, awayGoals].every((goal) => Number.isInteger(goal) && goal >= 0 && goal <= 20)) {
+      setScenarioError("Enter whole-number scores from 0 to 20.");
+      return;
+    }
+    setForced((current) => [...current, { match_id: fixture.id, home_goals: homeGoals, away_goals: awayGoals }]);
+    setSelectedFixtureId(availableFixtures.find((item) => item.id !== fixture.id)?.id ?? null);
+    setHomeGoals(0);
+    setAwayGoals(0);
+    setScenarioError(null);
+  }
+
+  async function runWhatIf() {
+    if (!forced.length) return;
+    setRunning(true);
+    setScenarioError(null);
     try {
-      const res = await fetch(`${API}/api/v1/simulation/whatif`, {
+      const response = await fetch(`${API}/api/v1/simulation/whatif`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ forced_results: forcedResults }),
+        body: JSON.stringify({ forced_results: forced }),
       });
-      if (!res.ok) throw new Error("Failed to run what-if simulation");
-      const whatIfData = await res.json();
-      setCurrentData(whatIfData);
-    } catch (err: any) {
-      console.error(err);
-      // Fallback or toast error? For now just log it or set a small local error state
-      alert(err.message);
+      if (!response.ok) {
+        const problem = await response.json().catch(() => null);
+        throw new Error(problem?.detail ?? `What-if request failed (${response.status}).`);
+      }
+      setScenario((await response.json()) as SimulationResponse);
+    } catch (cause) {
+      setScenarioError(cause instanceof Error ? cause.message : "Unable to run the scenario.");
     } finally {
-      setIsWhatIfLoading(false);
+      setRunning(false);
     }
-  };
+  }
 
-  const clearWhatIf = () => {
-    setCurrentData(baselineData);
-  };
+  function reset() {
+    setForced([]);
+    setScenario(null);
+    setScenarioError(null);
+    setSelectedFixtureId(fixtures[0]?.id ?? null);
+  }
 
-  if (isLoading) return <SimulatorSkeleton />;
-  if (error) return <ErrorState error={error} />;
-  if (!currentData || !baselineData) return null;
-
-  const isWhatIfActive = !!currentData.forced_results;
+  if (state === "loading") return <SimulatorSkeleton />;
+  if (state === "empty") return (
+    <div className="w-full space-y-6">
+      <h1 className="text-3xl font-semibold">Season simulator</h1>
+      <Card><CardContent className="p-8 text-sm text-muted-foreground">No simulation run is available yet. The nightly precompute job will populate the baseline.</CardContent></Card>
+    </div>
+  );
+  if (state === "error" || !data) return (
+    <div className="w-full space-y-6">
+      <h1 className="text-3xl font-semibold">Season simulator</h1>
+      <Card className="border-rose-400/20"><CardContent className="flex gap-3 p-6 text-sm text-rose-200">
+        <AlertCircle className="size-5 shrink-0" />
+        <p>Simulation is unavailable. {error} Check that the xgoal backend is running and try again.</p>
+      </CardContent></Card>
+    </div>
+  );
 
   return (
-    <div className="w-full space-y-8">
-      <PageHeader />
+    <div className="w-full space-y-7">
+      <header className="space-y-2">
+        <div className="flex items-center gap-3"><h1 className="text-3xl font-semibold">Season simulator</h1><Badge variant="muted">La Liga</Badge></div>
+        <p className="text-sm text-muted-foreground">Simulated {data.n_simulations.toLocaleString()} times, as of matchday {data.as_of_matchday}, model version {data.context?.model_version ?? data.model_version_id}. Run {data.run_at ? new Date(data.run_at).toLocaleString() : "—"}.</p>
+        {data.context?.fixture_calendar_note && <p className="text-xs text-muted-foreground">{data.context.fixture_calendar_note}</p>}
+      </header>
 
-      <MetadataCard data={currentData} />
+      <Card>
+        <CardHeader><CardTitle>What-if results</CardTitle><p className="text-sm text-muted-foreground">Pick an upcoming fixture and force its score. What-if runs use 2,000 simulations.</p></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="min-w-56 flex-1 space-y-1 text-xs text-muted-foreground">Upcoming fixture
+              <select className="mt-1 w-full rounded border border-border bg-background p-2 text-sm text-foreground" value={availableFixtures.some((item) => item.id === selectedFixtureId) ? selectedFixtureId! : availableFixtures[0]?.id ?? ""} onChange={(event) => setSelectedFixtureId(Number(event.target.value))}>
+                {availableFixtures.map((fixture) => <option key={fixture.id} value={fixture.id}>{fixtureLabel(fixture)}</option>)}
+              </select>
+            </label>
+            <label className="space-y-1 text-xs text-muted-foreground">Home goals
+              <input type="number" min={0} max={20} step={1} value={homeGoals} onChange={(event) => setHomeGoals(Number(event.target.value))} className="mt-1 block w-20 rounded border border-border bg-background p-2 text-sm text-foreground" />
+            </label>
+            <label className="space-y-1 text-xs text-muted-foreground">Away goals
+              <input type="number" min={0} max={20} step={1} value={awayGoals} onChange={(event) => setAwayGoals(Number(event.target.value))} className="mt-1 block w-20 rounded border border-border bg-background p-2 text-sm text-foreground" />
+            </label>
+            <button onClick={addForced} disabled={!availableFixtures.length || forced.length >= 50 || running} className="rounded bg-muted px-4 py-2 text-sm disabled:opacity-50">Add result</button>
+          </div>
+          {forced.length > 0 && <ul className="space-y-2 text-sm">{forced.map((result) => {
+            const fixture = fixtures.find((item) => item.id === result.match_id);
+            return <li key={result.match_id} className="flex items-center justify-between gap-3 rounded border border-border p-2">
+              <span>{fixture ? fixtureLabel(fixture) : result.match_id} · {result.home_goals}–{result.away_goals}</span>
+              <button onClick={() => { setForced((current) => current.filter((item) => item.match_id !== result.match_id)); setSelectedFixtureId(result.match_id); }} className="text-muted-foreground hover:text-foreground" aria-label={`Remove match ${result.match_id}`}>Remove</button>
+            </li>;
+          })}</ul>}
+          <div className="flex flex-wrap gap-3">
+            <button onClick={() => void runWhatIf()} disabled={!forced.length || running} className="rounded bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">{running ? "Running 2,000 simulations…" : "Run what-if"}</button>
+            <button onClick={reset} disabled={running} className="inline-flex items-center gap-2 rounded border border-border px-4 py-2 text-sm disabled:opacity-50"><RotateCcw className="size-4" />Reset</button>
+          </div>
+          {scenarioError && <p role="alert" className="text-sm text-rose-300">{scenarioError}</p>}
+        </CardContent>
+      </Card>
 
-      <WhatIfPanel
-        teams={baselineData.teams || []}
-        onRun={runWhatIf}
-        onClear={clearWhatIf}
-        isLoading={isWhatIfLoading}
-        isActive={isWhatIfActive}
-      />
+      <Card className="overflow-hidden">
+        <CardHeader><CardTitle>Final table probabilities</CardTitle><p className="text-sm text-muted-foreground">Select a team to see its finish-position distribution. What-if deltas compare paired unforced and forced 2,000-simulation runs with the same seed.</p></CardHeader>
+        <CardContent className="overflow-x-auto p-0">
+          <table className="w-full min-w-[810px] text-sm">
+            <thead className="border-b border-border bg-muted/50 text-left"><tr><th className="p-3">Team</th>{metrics.map((metric) => <th key={metric.key} className="p-3 text-right">P({metric.label})</th>)}<th className="p-3 text-right">Expected points (95% interval)</th></tr></thead>
+            <tbody>{data.teams.map((team) => {
+              const delta = deltas.get(team.team_id);
+              return <tr key={team.team_id} onClick={() => setSelectedTeamId(team.team_id)} className={`cursor-pointer border-b border-border/50 hover:bg-muted/30 ${chosen?.team_id === team.team_id ? "bg-primary/10" : ""}`}>
+                <th scope="row" className="p-3 text-left font-medium"><button onClick={() => setSelectedTeamId(team.team_id)}>{team.team}</button></th>
+                {metrics.map((metric) => <td key={metric.key} className="p-3 text-right tabular-nums">
+                  {percent(team[metric.key])}{delta && <><span className="ml-2 text-xs text-muted-foreground">base {percent(team[metric.key] - delta[metric.key])}</span><span className="ml-2"><Delta value={delta[metric.key]} /></span></>}
+                </td>)}
+                <td className="p-3 text-right tabular-nums">{team.expected_final_points.toFixed(1)} <span className="text-muted-foreground">({team.expected_final_points_95ci.lower.toFixed(0)}–{team.expected_final_points_95ci.upper.toFixed(0)})</span>{delta && <><span className="ml-2 text-xs text-muted-foreground">base {(team.expected_final_points - delta.expected_final_points).toFixed(1)}</span><span className="ml-2"><Delta value={delta.expected_final_points} points /></span></>}</td>
+              </tr>;
+            })}</tbody>
+          </table>
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-1 gap-8">
-        <ProbabilityTable data={currentData} isWhatIf={isWhatIfActive} />
-        <FinishDistributionChart teams={currentData.teams || []} />
-      </div>
+      {chosen && <Card>
+        <CardHeader><CardTitle>{chosen.team}: finish-position distribution</CardTitle></CardHeader>
+        <CardContent className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={Array.from({ length: 20 }, (_, index) => ({ position: index + 1, probability: (chosen.finish_position_distribution[String(index + 1)] ?? 0) * 100 }))}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="position" label={{ value: "Final position", position: "insideBottom", offset: -5 }} />
+              <YAxis tickFormatter={(value: number) => `${value}%`} />
+              <Tooltip formatter={(value: number) => [`${value.toFixed(1)}%`, "Probability"]} />
+              <Bar dataKey="probability" fill="hsl(174 72% 45%)" />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>}
     </div>
   );
 }
