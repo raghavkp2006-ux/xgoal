@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertCircle, ArrowDown, ArrowUp, Minus, RotateCcw } from "lucide-react";
+import { AlertCircle, ArrowDown, ArrowUp, RotateCcw } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { Badge } from "@/components/ui/badge";
@@ -55,10 +55,10 @@ function percent(value: number) {
 
 function Delta({ value, points = false }: { value: number; points?: boolean }) {
   const display = points ? value : value * 100;
-  const zero = Math.abs(display) < 0.05;
+  const zero = Math.abs(display) < 0.2;
   return (
-    <span className={`inline-flex items-center gap-0.5 text-xs ${zero ? "text-muted-foreground" : display > 0 ? "text-emerald-300" : "text-rose-300"}`}>
-      {zero ? <Minus className="size-3" /> : display > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+    <span className={`inline-flex items-center gap-0.5 whitespace-nowrap text-xs ${zero ? "text-muted-foreground" : display > 0 ? "text-emerald-300" : "text-rose-300"}`}>
+      {!zero && (display > 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />)}
       {zero ? "0.0" : Math.abs(display).toFixed(1)}{points ? " pts" : " pp"}
     </span>
   );
@@ -81,6 +81,7 @@ export default function SimulatorPage() {
   const [error, setError] = useState<string | null>(null);
   const [baseline, setBaseline] = useState<SimulationResponse | null>(null);
   const [scenario, setScenario] = useState<SimulationResponse | null>(null);
+  const [scenarioForcedCount, setScenarioForcedCount] = useState(0);
   const [fixtures, setFixtures] = useState<Fixture[]>([]);
   const [forced, setForced] = useState<ForcedResult[]>([]);
   const [selectedFixtureId, setSelectedFixtureId] = useState<number | null>(null);
@@ -167,6 +168,7 @@ export default function SimulatorPage() {
         throw new Error(problem?.detail ?? `What-if request failed (${response.status}).`);
       }
       setScenario((await response.json()) as SimulationResponse);
+      setScenarioForcedCount(forced.length);
     } catch (cause) {
       setScenarioError(cause instanceof Error ? cause.message : "Unable to run the scenario.");
     } finally {
@@ -177,6 +179,7 @@ export default function SimulatorPage() {
   function reset() {
     setForced([]);
     setScenario(null);
+    setScenarioForcedCount(0);
     setScenarioError(null);
     setSelectedFixtureId(fixtures[0]?.id ?? null);
   }
@@ -202,7 +205,9 @@ export default function SimulatorPage() {
     <div className="w-full space-y-7">
       <header className="space-y-2">
         <div className="flex items-center gap-3"><h1 className="text-3xl font-semibold">Season simulator</h1><Badge variant="muted">La Liga</Badge></div>
-        <p className="text-sm text-muted-foreground">Simulated {data.n_simulations.toLocaleString()} times, as of matchday {data.as_of_matchday}, model version {data.context?.model_version ?? data.model_version_id}. Run {data.run_at ? formatDateTime(data.run_at) : "—"}.</p>
+        <p className="text-sm text-muted-foreground">{scenario
+          ? `What-if run: 2,000 simulations with ${scenarioForcedCount} forced result(s). Base column = the same 2,000-simulation run without your forced results, so it differs slightly from the 10,000-simulation figures.`
+          : <>Simulated {data.n_simulations.toLocaleString()} times, as of matchday {data.as_of_matchday}, model version {data.context?.model_version ?? data.model_version_id}. Run {data.run_at ? formatDateTime(data.run_at) : "—"}.</>}</p>
         {data.context?.fixture_calendar_note && <p className="text-xs text-muted-foreground">{data.context.fixture_calendar_note}</p>}
       </header>
 
@@ -241,16 +246,31 @@ export default function SimulatorPage() {
       <Card className="overflow-hidden">
         <CardHeader><CardTitle>Final table probabilities</CardTitle><p className="text-sm text-muted-foreground">Select a team to see its finish-position distribution. What-if deltas compare paired unforced and forced 2,000-simulation runs with the same seed.</p></CardHeader>
         <CardContent className="overflow-x-auto p-0">
-          <table className="w-full min-w-[810px] text-sm">
+          <table className="w-full min-w-[1140px] table-fixed text-sm">
+            <colgroup>
+              <col className="w-[240px]" />
+              {metrics.map((metric) => <col key={metric.key} className="w-[160px]" />)}
+              <col />
+            </colgroup>
             <thead className="border-b border-border bg-muted/50 text-left"><tr><th className="p-3">Team</th>{metrics.map((metric) => <th key={metric.key} className="p-3 text-right">P({metric.label})</th>)}<th className="p-3 text-right">Expected points (95% interval)</th></tr></thead>
             <tbody>{data.teams.map((team) => {
               const delta = deltas.get(team.team_id);
               return <tr key={team.team_id} onClick={() => setSelectedTeamId(team.team_id)} className={`cursor-pointer border-b border-border/50 hover:bg-muted/30 ${chosen?.team_id === team.team_id ? "bg-primary/10" : ""}`}>
-                <th scope="row" className="p-3 text-left font-medium"><button onClick={() => setSelectedTeamId(team.team_id)}>{team.team}</button></th>
+                <th scope="row" className="whitespace-nowrap p-3 text-left font-medium"><button onClick={() => setSelectedTeamId(team.team_id)}>{team.team}</button></th>
                 {metrics.map((metric) => <td key={metric.key} className="p-3 text-right tabular-nums">
-                  {percent(team[metric.key])}{delta && <><span className="ml-2 text-xs text-muted-foreground">base {percent(team[metric.key] - delta[metric.key])}</span><span className="ml-2"><Delta value={delta[metric.key]} /></span></>}
+                  <div className="whitespace-nowrap leading-5">{percent(team[metric.key])}</div>
+                  {scenario && <div className="flex h-5 items-center justify-end gap-2 whitespace-nowrap text-xs leading-5">
+                    <span className="text-muted-foreground">base {delta ? percent(team[metric.key] - delta[metric.key]) : "unavailable"}</span>
+                    {delta && <Delta value={delta[metric.key]} />}
+                  </div>}
                 </td>)}
-                <td className="p-3 text-right tabular-nums">{team.expected_final_points.toFixed(1)} <span className="text-muted-foreground">({team.expected_final_points_95ci.lower.toFixed(0)}–{team.expected_final_points_95ci.upper.toFixed(0)})</span>{delta && <><span className="ml-2 text-xs text-muted-foreground">base {(team.expected_final_points - delta.expected_final_points).toFixed(1)}</span><span className="ml-2"><Delta value={delta.expected_final_points} points /></span></>}</td>
+                <td className="p-3 text-right tabular-nums">
+                  <div className="whitespace-nowrap leading-5">{team.expected_final_points.toFixed(1)} <span className="text-muted-foreground">({team.expected_final_points_95ci.lower.toFixed(0)}–{team.expected_final_points_95ci.upper.toFixed(0)})</span></div>
+                  {scenario && <div className="flex h-5 items-center justify-end gap-2 whitespace-nowrap text-xs leading-5">
+                    <span className="text-muted-foreground">base {delta ? (team.expected_final_points - delta.expected_final_points).toFixed(1) : "unavailable"}</span>
+                    {delta && <Delta value={delta.expected_final_points} points />}
+                  </div>}
+                </td>
               </tr>;
             })}</tbody>
           </table>
