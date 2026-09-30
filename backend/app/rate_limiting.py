@@ -4,8 +4,12 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
 
+from app.config import settings
+
 limiter = Limiter(
-    key_func=get_remote_address, default_limits=["60/minute"], headers_enabled=True
+    key_func=get_remote_address,
+    default_limits=[settings.rate_limit_default],
+    headers_enabled=True,
 )
 
 

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: xgoal-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -e .
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips "*"
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: PYTHON_VERSION
+        value: "3.12.8"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: RATE_LIMIT_DEFAULT
+        value: "60/minute"
+      - key: RATE_LIMIT_EXPENSIVE
+        value: "10/minute"

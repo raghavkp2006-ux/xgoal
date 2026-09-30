@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import or_, select, text
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models import Match, MatchStatus, Season, SimulationRun
 from app.rate_limiting import limiter
@@ -214,7 +215,7 @@ def paired_team_deltas(
 
 
 @router.post("/whatif")
-@limiter.limit("10/minute", override_defaults=False)
+@limiter.limit(settings.rate_limit_expensive, override_defaults=False)
 def run_whatif(
     request: Request,
     response: Response,

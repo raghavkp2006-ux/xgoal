@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session, joinedload
 
+from app.config import settings
 from app.database import get_db
 from app.models import Match, MatchStatus, ModelVersion, Prediction, Team
 from app.rate_limiting import limiter
@@ -73,7 +74,7 @@ def get_prediction(match_id: int, db: Session = Depends(get_db)) -> PredictionRe
 
 
 @router.post("/hypothetical", response_model=PredictionResponse)
-@limiter.limit("10/minute", override_defaults=False)
+@limiter.limit(settings.rate_limit_expensive, override_defaults=False)
 def create_hypothetical_prediction(
     request: Request,
     response: Response,
